@@ -1,6 +1,6 @@
 # Diffraction: implementation plan
 
-Status: working plan, updated 2026-09-12. Build a dedicated application for local self-review, with Codex as the only V1 agent integration and MIT licensing. Milestone 1 is implemented as a runnable example prototype. The local vertical slice is next.
+Status: working plan, updated 2026-09-12. Build a dedicated application for local self-review, with Codex as the only V1 agent integration and MIT licensing. Milestone 1 is implemented as a runnable example prototype. Local snapshot capture and browser review are implemented; Codex-generated analysis is next.
 
 ## Development workflow
 
@@ -50,13 +50,21 @@ The [review model](review-model.md) separates deterministic source changes from 
 
 Contiguous edit blocks are the first implemented unit. Splitting adjacent unrelated edits within one block remains an explicit limitation to address before general local reviews.
 
+## Local capture and browser review
+
+The local command captures merge-base-to-working-tree changes, including non-ignored untracked files, without mutating Git. It checks two consecutive reads and retries observed concurrent edits. The snapshot remains fixed in memory and is served on loopback with a per-session access token. Browser feedback uses the snapshot identity and original source coordinates.
+
+Base resolution prefers recorded remote default metadata, then an unambiguous main/master reference; ambiguous cases require `--base`. No automatic fetch occurs. Binary/non-UTF-8 content, files over 2 MiB, symlinks, special files, and submodules receive visible notices. Empty files and mode changes remain visible; renames appear as delete/add. Basic file-role heuristics are implemented.
+
+Tests use temporary Git repositories to exercise capture integrity, worktrees, merge bases, mixed changes, ambiguity, conflicts, and concurrency; HTTP tests check snapshot access and immutability. UI rendering tests cover empty and metadata-only reviews. Interactive browser verification of the real-snapshot workflow remains to be completed.
+
 ## Next implementation step
 
 Build the local vertical slice in this order:
 
-1. Capture a stable text snapshot from a temporary test repository. Resolve the comparison branch and merge base; combine committed, staged, unstaged, and non-ignored untracked changes without mutating the index or working tree. Detect concurrent edits and report unsupported file types explicitly.
+1. **Implemented:** Capture a stable text snapshot from a temporary test repository. Resolve the comparison branch and merge base; combine committed, staged, unstaged, and non-ignored untracked changes without mutating the index or working tree. Detect concurrent edits and report unsupported file types explicitly.
 2. Extend coverage to adjacent semantic splits, renames, binary changes, and exact moves. Add deterministic file-role classification with visible unknowns.
 3. Establish the supported Codex invocation and generate schema-constrained analysis tied to the captured snapshot. Validate it before displaying sections; retain the full diff when generation fails.
-4. Connect capture and generation to the browser, document the local command, and verify a complete feedback loop on a real change.
+4. Capture is connected to the browser. Connect generated analysis, document the local command, and verify a complete feedback loop on a real change.
 
-The local scope remains fixed: all net changes since the branch's merge base, with no scope selector or committed-only mode. Base-branch resolution and the Codex interface need technical investigation before their implementation is committed to a particular design.
+The local scope remains fixed: all net changes since the branch's merge base, with no scope selector or committed-only mode. The Codex interface needs technical investigation before selecting an integration design.

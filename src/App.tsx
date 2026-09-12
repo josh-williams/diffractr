@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
   ArrowRight,
@@ -16,7 +16,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { z } from "zod";
-import { analysis as exampleAnalysis, snapshot } from "./examples/invitations";
+
 import {
   anchorSchema,
   exportFeedback,
@@ -26,36 +26,13 @@ import {
   type Anchor,
   type Comment,
   type SourceFile,
+  type Snapshot,
 } from "./core/review";
 import DiffCard from "./components/DiffCard";
 import Dialog from "./components/Dialog";
 import Brand from "./components/Brand";
 import FullFileDiff from "./components/FullFileDiff";
 
-const validation = validateAnalysis(snapshot, exampleAnalysis);
-const analysis = validation.analysis;
-const units = indexChanges(snapshot);
-const stats = statistics(snapshot);
-const storageKey = `diffraction:feedback:${snapshot.id}`;
-const commentSchema = anchorSchema.and(
-  z.object({
-    id: z.string(),
-    snapshotId: z.literal(snapshot.id),
-    body: z.string().min(1),
-  }),
-);
-function loadComments(): Comment[] {
-  try {
-    const result = z
-      .array(commentSchema)
-      .safeParse(JSON.parse(localStorage.getItem(storageKey) ?? "[]"));
-    if (!result.success) return [];
-    exportFeedback(snapshot, result.data);
-    return result.data;
-  } catch {
-    return [];
-  }
-}
 const roleColors = {
   production: "bg-violet-500",
   tests: "bg-blue-500",
@@ -79,7 +56,46 @@ const roleLabels = {
   generated: "Generated",
   other: "Other",
 };
-export default function App() {
+export default function App({
+  snapshot,
+  inputAnalysis,
+  example = false,
+}: {
+  snapshot: Snapshot;
+  inputAnalysis?: unknown;
+  example?: boolean;
+}) {
+  const validation = useMemo(
+    () =>
+      inputAnalysis
+        ? validateAnalysis(snapshot, inputAnalysis)
+        : { analysis: null, errors: [] },
+    [snapshot, inputAnalysis],
+  );
+  const analysis = validation.analysis;
+  const units = useMemo(() => indexChanges(snapshot), [snapshot]);
+  const stats = useMemo(() => statistics(snapshot, units), [snapshot, units]);
+  const storageKey = `diffraction:feedback:${snapshot.id}`;
+  const commentSchema = anchorSchema.and(
+    z.object({
+      id: z.string(),
+      snapshotId: z.literal(snapshot.id),
+      body: z.string().min(1),
+    }),
+  );
+  function loadComments(): Comment[] {
+    try {
+      const result = z
+        .array(commentSchema)
+        .safeParse(JSON.parse(localStorage.getItem(storageKey) ?? "[]"));
+      if (!result.success) return [];
+      exportFeedback(snapshot, result.data);
+      return result.data;
+    } catch {
+      return [];
+    }
+  }
+
   const [theme, setTheme] = useState(loadTheme);
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -294,12 +310,18 @@ export default function App() {
           <div className="flex items-center gap-2 text-mist-500 dark:text-mist-400 [&_strong]:font-medium [&_strong]:text-mist-800 [&_strong]:dark:text-mist-200">
             <span>Reviews</span>
             <ChevronRight size={14} />
-            <strong>Team invitations</strong>
+            <strong>
+              {example ? "Team invitations" : snapshot.repository}
+            </strong>
             <span
               className="rounded border border-mist-300 dark:border-mist-700 px-1.5 py-0.5 text-xs text-mist-500 dark:text-mist-400"
-              title="Bundled example. No repository access or AI calls."
+              title={
+                example
+                  ? "Bundled example"
+                  : `Snapshot ${snapshot.id.slice(0, 12)}`
+              }
             >
-              Example
+              {example ? "Example" : "Local snapshot"}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -348,7 +370,7 @@ export default function App() {
             <GitBranch size={14} />
             <span>{snapshot.branch}</span>
             <span className="text-mist-400 dark:text-mist-500">←</span>
-            <span>main</span>
+            <span title={snapshot.mergeBase}>{snapshot.base}</span>
             <span className="rounded bg-mist-200 dark:bg-mist-800 px-1.5 py-0.5 font-sans text-mist-600 dark:text-mist-400">
               Local changes
             </span>
@@ -358,12 +380,17 @@ export default function App() {
             data-review-part="overview"
             aria-label="Overview"
           >
-            <h1>{analysis?.title ?? "Review the complete change"}</h1>
+            <h1>
+              {analysis?.title ??
+                (snapshot.files.length ? "Local changes" : "No local changes")}
+            </h1>
             <p className="mt-2 max-w-5xl leading-6 text-mist-600 dark:text-mist-400">
               {analysis?.summary ??
-                "Semantic organization could not be validated. Every file is still available for review."}
+                (inputAnalysis
+                  ? "Analysis could not be validated. All changed files are available below."
+                  : `${snapshot.repository} · ${snapshot.files.length} changed files`)}
             </p>
-            {!analysis && (
+            {!analysis && inputAnalysis != null && (
               <div
                 className="my-3 rounded border border-mist-300 dark:border-mist-700 bg-mist-100 dark:bg-mist-900 p-3 [&_button]:underline"
                 role="alert"
@@ -433,12 +460,14 @@ export default function App() {
                 ))}
               </div>
             </section>
-            <div className="mb-2 flex items-center justify-between gap-3 [&_p]:mt-1 [&_p]:text-xs [&_p]:text-mist-500 [&_p]:dark:text-mist-400 [&>span]:text-xs [&>span]:text-mist-500 [&>span]:dark:text-mist-400">
-              <div>
-                <h2>Change groups</h2>
+            {analysis && (
+              <div className="mb-2 flex items-center justify-between gap-3 [&_p]:mt-1 [&_p]:text-xs [&_p]:text-mist-500 [&_p]:dark:text-mist-400 [&>span]:text-xs [&>span]:text-mist-500 [&>span]:dark:text-mist-400">
+                <div>
+                  <h2>Change groups</h2>
+                </div>
+                <span>{analysis?.sections.length ?? 0} groups</span>
               </div>
-              <span>{analysis?.sections.length ?? 0} groups</span>
-            </div>
+            )}
             <div className="space-y-2">
               {analysis?.sections.map((s, i) => {
                 const owned = units.filter((u) => s.unitIds.includes(u.id));
@@ -486,7 +515,11 @@ export default function App() {
               ? units.filter((unit) => section.unitIds.includes(unit.id))
               : units;
             const groups = [
-              ...new Set(selected.map((unit) => unit.fileId)),
+              ...new Set(
+                section
+                  ? selected.map((unit) => unit.fileId)
+                  : snapshot.files.map((file) => file.id),
+              ),
             ].map((id) => ({
               file: snapshot.files.find((file) => file.id === id)!,
               units: selected.filter((unit) => unit.fileId === id),

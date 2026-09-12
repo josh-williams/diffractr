@@ -27,10 +27,16 @@ If analysis validation fails, the interface offers all files without semantic or
 - Zod validates analysis at the boundary. Text is rendered as text; descriptions and diagrams cannot inject HTML or executable diagram code. Diagrams currently support a short sequence of labeled steps, not an arbitrary graph.
 - The synthetic example includes implementation, tests, generated output, and schema changes. It is review data, not an executable invitation backend. Its roles and explanations are manually specified.
 - The first unit is an indivisible contiguous edit block. Adjacent unrelated changes within that block cannot yet be assigned to different sections. Further splitting must preserve non-overlapping old/new ranges and exact coverage.
-- Snapshot identity is fixed for the example. Live capture must derive identity from the captured inputs and detect concurrent edits before relying on it for stale-result rejection.
-- Binary files, file modes, renames, exact move/copy detection, automatic classification, live Git capture, and Codex execution are not implemented.
+- Snapshot identity is fixed for the example. Local capture derives identity from repository location, source fingerprints, modes, and comparison metadata. Two matching consecutive reads are required, with up to three attempts. This detects observed concurrent edits; it is not a filesystem-atomic snapshot.
+- Local Git capture and basic file-role classification are implemented. Mode-only and empty-file changes are retained outside text change units. Unsupported content receives a notice and contributes no text line counts. Renames appear as delete/add; exact move/copy detection and Codex execution remain unimplemented.
 - Draft feedback is stored in browser local storage under the snapshot identity. Clipboard and Markdown download are the only export paths. Cross-revision migration and progress tracking remain later work.
 - The prototype bundles a general-purpose syntax highlighter. Its production build reports a large-chunk warning; worker loading and bundle optimization remain performance work for larger reviews.
+
+## Local transport
+
+`scripts/capture.mjs` produces snapshots from the merge base and current filesystem. Regular UTF-8 files are compared as raw bytes/text without running Git content filters or text conversion. This can expose checkout transformations such as CRLF normalization or LFS pointers as differences. Sparse checkouts are not yet supported: missing tracked paths are treated as deletions. File paths must be valid UTF-8.
+
+`scripts/review.mjs` holds one immutable snapshot in memory and serves built application assets. The snapshot endpoint requires a random session token and same-origin host; neither repository paths nor arbitrary files are exposed as routes. The browser validates snapshot structure before rendering. Opening a local review without its token shows an error rather than example data.
 
 ## Validation
 

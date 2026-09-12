@@ -84,10 +84,15 @@ export default function DiffCard({
         <span className="hidden text-xs text-mist-400 sm:inline">
           {file.role}
         </span>
-        <span className="font-sans text-xs text-emerald-400">+{added}</span>
-        <span className="font-sans text-xs text-red-400">−{removed}</span>
+        {!file.notice && (
+          <span className="font-sans text-xs text-emerald-400">+{added}</span>
+        )}
+        {!file.notice && (
+          <span className="font-sans text-xs text-red-400">−{removed}</span>
+        )}
         <button
           className="inline-flex shrink-0 items-center justify-center rounded p-1 text-mist-400 hover:bg-mist-800 hover:text-white"
+          disabled={!!file.notice || file.before === file.after}
           title="Open complete file diff"
           aria-label={`Open complete diff for ${file.path}`}
           onClick={() => onFullFile(file)}
@@ -112,7 +117,20 @@ export default function DiffCard({
           </button>
         )}
       </header>
-      {collapsed ? (
+      {file.oldMode !== undefined && file.oldMode !== file.newMode && (
+        <p className="border-b border-mist-800 px-3 py-1.5 text-xs text-mist-400">
+          {file.oldMode === null
+            ? "Added file"
+            : file.newMode === null
+              ? "Deleted file"
+              : `Mode ${file.oldMode} → ${file.newMode}`}
+        </p>
+      )}
+      {file.notice || units.length === 0 ? (
+        <p className="px-3 py-2 text-xs text-mist-400">
+          {file.notice ?? "No changed text lines"}
+        </p>
+      ) : collapsed ? (
         <button
           className="w-full px-3 py-2 text-left text-xs text-mist-400 hover:text-mist-200"
           onClick={() => setCollapsed(false)}

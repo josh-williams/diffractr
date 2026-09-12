@@ -9,6 +9,9 @@ export interface SourceFile {
   before: string | null;
   after: string | null;
   role: FileRole;
+  notice?: string;
+  oldMode?: string | null;
+  newMode?: string | null;
 }
 export interface Snapshot {
   id: string;
@@ -16,6 +19,9 @@ export interface Snapshot {
   branch: string;
   base: string;
   files: SourceFile[];
+  mergeBase?: string;
+  head?: string;
+  capturedAt?: string;
 }
 export interface ChangeUnit {
   id: string;
@@ -93,6 +99,7 @@ export function indexChanges(snapshot: Snapshot): ChangeUnit[] {
   return snapshot.files.flatMap((file) => {
     if (ids.has(file.id)) throw new Error(`Duplicate source file: ${file.id}`);
     ids.add(file.id);
+    if (file.notice || file.before === file.after) return [];
     return fileDiff(file).hunks.map((h) => ({
       id: `${file.id}:${h.deletionStart}:${h.additionStart}`,
       fileId: file.id,
@@ -231,7 +238,7 @@ export function unitDiff(
     line +
     (line.endsWith("\n") ? "" : "\n\\ No newline at end of file\n");
   const patch =
-    `--- a/${file.path}\n+++ b/${file.path}\n@@ -${oldCount ? oldStart + 1 : oldStart},${oldCount} +${newCount ? newStart + 1 : newStart},${newCount} @@\n` +
+    `--- a/file\n+++ b/file\n@@ -${oldCount ? oldStart + 1 : oldStart},${oldCount} +${newCount ? newStart + 1 : newStart},${newCount} @@\n` +
     before
       .slice(oldStart, unit.oldStart)
       .map((l) => patchLine(" ", l))
@@ -253,6 +260,7 @@ export function unitDiff(
       .join("");
   const parsed = parsePatchFiles(patch, undefined, true)[0]?.files[0];
   if (!parsed) throw new Error(`Unable to render ${unit.id}`);
+  parsed.name = file.path;
   return parsed;
 }
 export function statistics(snapshot: Snapshot, units = indexChanges(snapshot)) {
@@ -272,7 +280,7 @@ export function exportFeedback(
   snapshot: Snapshot,
   comments: Comment[],
 ): string {
-  const header = `# Diffraction review feedback\n\nRepository: ${snapshot.repository}\nBranch: ${snapshot.branch}\nBase: ${snapshot.base}\nSnapshot: ${snapshot.id}\n\nCheck the current code against this snapshot before applying feedback.\n`;
+  const header = `# Diffraction review feedback\n\nRepository: ${snapshot.repository}\nBranch: ${snapshot.branch}\nBase: ${snapshot.base}\n${snapshot.mergeBase ? `Merge base: ${snapshot.mergeBase}\n` : ""}Snapshot: ${snapshot.id}\n\nCheck the current code against this snapshot before applying feedback.\n`;
   return (
     header +
     comments
