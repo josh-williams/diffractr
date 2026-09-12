@@ -33,10 +33,16 @@ Help a human understand and review large code changes through semantic organizat
 - A section represents one coherent change in behavior or intent. Prefer behavior-oriented sections across implementation layers; use technical sections when a refactor, migration, or other technical change stands on its own.
 - Every changed range belongs to exactly one section. A file can appear in multiple sections, each showing only its assigned changes. The precise splitting algorithm remains open.
 - Keep tests with the behavior they validate. Classify production, test, and generated changes independently of section membership for the size breakdown. Mechanical output can be collapsed but must remain discoverable.
-- The overview summarizes the whole change, shows the size breakdown, and provides an ordered section list with short descriptions and flag counts. Section navigation sits on the left.
+- The overview summarizes the whole change, shows the size breakdown, and provides an ordered section list with short descriptions and flag counts. Render the overview and all change groups on one continuous scrollable page. Sidebar links jump to the overview or a group, and the active highlight follows the current scroll position. Omit an All files link and a group heading from the sidebar.
 - Within a section, place its description and any useful diagrams above the relevant diffs. Order those diffs to make the implementation understandable.
 - Render flags inline at the relevant code ranges so their location is unambiguous. The section description explains the overall change; flags identify specific decisions or behavior worth checking, without repetitively restating the description.
 - Allow the reviewer to expand surrounding context or open the complete file diff. Context shown for comprehension does not duplicate ownership of a changed range.
+
+## Interface styling
+
+Use “change groups” in the interface for semantic groupings. Keep UI copy concise: omit instructional filler and decorative explanations; retain the actual change summaries, flags, and actionable status/error messages.
+
+Use Tailwind CSS 4 with a custom Mist palette for application surfaces: an equal OKLab blend of the corresponding gray and zinc shades. Support light and dark themes, keeping diff views dark in both. Never assign colors to individual sections; use the same Mist treatment for all section numbers and diagrams. Use violet, blue, cyan, and amber for file-role categories in the size breakdown. Use IBM Plex Sans for interface text and prose, and IBM Plex Mono for diff code. Bundle the fonts locally. Favor compact spacing, consistent sidebar text alignment, and restrained typography. Use a shared muted aurora gradient for every active navigation item. Do not use shadows; distinguish surfaces with borders, color, and spacing. Keep branding small; avoid workspace blocks, version/license badges, and widely spaced uppercase labels.
 
 ## Later scope
 

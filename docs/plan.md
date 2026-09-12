@@ -1,6 +1,6 @@
 # Diffraction: implementation plan
 
-Status: working plan, updated 2026-09-07. Build a dedicated application for local self-review, with Codex as the only V1 agent integration and MIT licensing. Implementation has not begun. Milestone details below are proposed.
+Status: working plan, updated 2026-09-12. Build a dedicated application for local self-review, with Codex as the only V1 agent integration and MIT licensing. Milestone 1 is implemented as a runnable example prototype. The local vertical slice is next.
 
 ## Development workflow
 
@@ -12,7 +12,7 @@ Each implementation task should receive: the problem, relevant brief sections, s
 
 Plan the next milestone in detail and keep later ones coarse. Record consequential technical decisions with their rationale. Add GitHub issues when execution or outside collaboration makes them useful; avoid maintaining duplicate task status in several places.
 
-Push incremental work to GitHub as development proceeds. Maintain installation instructions, usage documentation, and examples alongside the features they describe. Include the MIT license from the start. There is no separate open-source release milestone; a contributor guide and PR checks are out of scope for now.
+Commit and push only when explicitly requested. Keep ongoing iterations local until then. Maintain installation instructions, usage documentation, and examples alongside the features they describe. Include the MIT license from the start. There is no separate open-source release milestone; a contributor guide and PR checks are out of scope for now.
 
 ## Milestones
 
@@ -42,6 +42,21 @@ Design progress tracking and revision reconciliation after the core review model
 
 Proposed boundary: ordinary code owns captured diffs, references, coverage, counts, and feedback; Codex proposes organization, explanations, and flags. Define a review artifact between these layers. Keep revision tracking outside the initial model-design work except for identifying the captured input each artifact describes.
 
+## Milestone 1 implementation
+
+The browser prototype implements overview, ordered behavior sections, descriptions, simple flow diagrams, inline flags, size breakdown, context expansion, full file diffs, and persistent draft feedback with Markdown export. The bundled example splits one service file across two behaviors and keeps each behavior's tests alongside it.
+
+The [review model](review-model.md) separates deterministic source changes from proposed analysis. Validation rejects missing, duplicated, invented, and stale references. Tests cover source coordinates, additions/deletions at file boundaries, context isolation, counts, and feedback export. Browser checks cover rendering, old-side line selection, flags, feedback persistence, and clipboard export.
+
+Contiguous edit blocks are the first implemented unit. Splitting adjacent unrelated edits within one block remains an explicit limitation to address before general local reviews.
+
 ## Next implementation step
 
-Define the core review artifact using the confirmed section model. The local scope is fixed for V1: all net changes since the branch's merge base, including committed, staged, unstaged, and non-ignored untracked work, with no scope selector or committed-only mode. Use a realistic change with cross-file behavior, unrelated edits within one file, and generated/test output to shape the first prototype. Validate layout details and code anchoring before substantial backend investment.
+Build the local vertical slice in this order:
+
+1. Capture a stable text snapshot from a temporary test repository. Resolve the comparison branch and merge base; combine committed, staged, unstaged, and non-ignored untracked changes without mutating the index or working tree. Detect concurrent edits and report unsupported file types explicitly.
+2. Extend coverage to adjacent semantic splits, renames, binary changes, and exact moves. Add deterministic file-role classification with visible unknowns.
+3. Establish the supported Codex invocation and generate schema-constrained analysis tied to the captured snapshot. Validate it before displaying sections; retain the full diff when generation fails.
+4. Connect capture and generation to the browser, document the local command, and verify a complete feedback loop on a real change.
+
+The local scope remains fixed: all net changes since the branch's merge base, with no scope selector or committed-only mode. Base-branch resolution and the Codex interface need technical investigation before their implementation is committed to a particular design.

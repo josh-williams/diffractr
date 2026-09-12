@@ -1,0 +1,242 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+/* Mist blends equal parts Tailwind gray and zinc in OKLab. */
+@theme inline {
+  --color-mist-50: color-mix(
+    in oklab,
+    var(--color-gray-50) 50%,
+    var(--color-zinc-50)
+  );
+  --color-mist-100: color-mix(
+    in oklab,
+    var(--color-gray-100) 50%,
+    var(--color-zinc-100)
+  );
+  --color-mist-200: color-mix(
+    in oklab,
+    var(--color-gray-200) 50%,
+    var(--color-zinc-200)
+  );
+  --color-mist-300: color-mix(
+    in oklab,
+    var(--color-gray-300) 50%,
+    var(--color-zinc-300)
+  );
+  --color-mist-400: color-mix(
+    in oklab,
+    var(--color-gray-400) 50%,
+    var(--color-zinc-400)
+  );
+  --color-mist-500: color-mix(
+    in oklab,
+    var(--color-gray-500) 50%,
+    var(--color-zinc-500)
+  );
+  --color-mist-600: color-mix(
+    in oklab,
+    var(--color-gray-600) 50%,
+    var(--color-zinc-600)
+  );
+  --color-mist-700: color-mix(
+    in oklab,
+    var(--color-gray-700) 50%,
+    var(--color-zinc-700)
+  );
+  --color-mist-800: color-mix(
+    in oklab,
+    var(--color-gray-800) 50%,
+    var(--color-zinc-800)
+  );
+  --color-mist-900: color-mix(
+    in oklab,
+    var(--color-gray-900) 50%,
+    var(--color-zinc-900)
+  );
+  --color-mist-950: color-mix(
+    in oklab,
+    var(--color-gray-950) 50%,
+    var(--color-zinc-950)
+  );
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  body {
+    @apply m-0 bg-mist-50 font-sans text-sm text-mist-800 dark:bg-mist-950 dark:text-mist-200 antialiased;
+  }
+  button {
+    @apply cursor-pointer disabled:cursor-not-allowed disabled:opacity-40;
+  }
+  button,
+  a,
+  textarea {
+    @apply focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mist-500;
+  }
+  h1 {
+    @apply text-2xl leading-8 font-semibold tracking-tight text-mist-900 dark:text-mist-100;
+  }
+  h2,
+  h3 {
+    @apply text-sm font-semibold;
+  }
+  svg {
+    @apply shrink-0;
+  }
+  diffs-container {
+    /* Bridge Tailwind's palette into Pierre's shadow-DOM theme. */
+    --diffs-bg: theme(colors.mist.950);
+    --diffs-bg-buffer-override: theme(colors.mist.900);
+    --diffs-bg-context-override: theme(colors.mist.950);
+    --diffs-bg-context-gutter-override: theme(colors.mist.950);
+    --diffs-bg-separator-override: theme(colors.mist.800);
+    --diffs-bg-hover-override: theme(colors.mist.700);
+    --diffs-fg-number-override: theme(colors.mist.400);
+    @apply bg-mist-950;
+    @apply block [color-scheme:dark] [--diffs-font-family:var(--font-mono)] [--diffs-header-font-family:var(--font-sans)] [--diffs-font-size:12px] [--diffs-line-height:20px];
+  }
+}
+
+/* Offset aurora pools with faint secondary washes to soften the three main lobes. */
+@utility sidebar-active {
+  --aurora-base: theme(colors.mist.50);
+  --aurora-border: theme(colors.mist.200);
+  --aurora-violet: theme(colors.violet.500 / 11.52%);
+  --aurora-blue: theme(colors.blue.500 / 9.36%);
+  --aurora-cyan: theme(colors.cyan.500 / 7.2%);
+  --aurora-violet-echo: theme(colors.violet.500 / 10.08%);
+  --aurora-upper-blue: theme(colors.blue.500 / 7.2%);
+  --aurora-violet-echo-edge: theme(colors.violet.400 / 10.08%);
+  --aurora-violet-edge: theme(colors.violet.400 / 25.2%);
+  --aurora-blue-edge: theme(colors.blue.400 / 21.6%);
+  --aurora-cyan-edge: theme(colors.cyan.500 / 17.28%);
+  /* The first five pools color the fill; the pools after the opaque base color the border. */
+  &::before {
+    background:
+      radial-gradient(
+          ellipse 58% 150% at 104% 108%,
+          var(--aurora-violet-echo),
+          transparent 85%
+        )
+        padding-box,
+      radial-gradient(
+          ellipse 48% 150% at 62% -18%,
+          var(--aurora-upper-blue),
+          transparent 85%
+        )
+        padding-box,
+      radial-gradient(
+          ellipse 65% 170% at 14% 12%,
+          var(--aurora-violet),
+          transparent 65%
+        )
+        padding-box,
+      radial-gradient(
+          ellipse 50% 200% at 100% 40%,
+          var(--aurora-cyan),
+          transparent 65%
+        )
+        padding-box,
+      radial-gradient(ellipse at 12% 100%, var(--aurora-blue), transparent 65%)
+        padding-box,
+      linear-gradient(var(--aurora-base), var(--aurora-base)) padding-box,
+      radial-gradient(
+          ellipse 58% 150% at 104% 108%,
+          var(--aurora-violet-echo-edge),
+          transparent 85%
+        )
+        border-box,
+      radial-gradient(
+          ellipse 65% 170% at 14% 12%,
+          var(--aurora-violet-edge),
+          transparent 65%
+        )
+        border-box,
+      radial-gradient(
+          ellipse 50% 200% at 100% 40%,
+          var(--aurora-cyan-edge),
+          transparent 65%
+        )
+        border-box,
+      radial-gradient(
+          ellipse at 12% 100%,
+          var(--aurora-blue-edge),
+          transparent 65%
+        )
+        border-box,
+      linear-gradient(var(--aurora-border), var(--aurora-border)) border-box;
+  }
+  @variant dark {
+    --aurora-base: theme(colors.mist.900);
+    --aurora-border: theme(colors.mist.700);
+    --aurora-violet: theme(colors.violet.500 / 18%);
+    --aurora-blue: theme(colors.blue.500 / 20%);
+    --aurora-cyan: theme(colors.cyan.500 / 13%);
+    --aurora-violet-echo: theme(colors.violet.500 / 16%);
+    --aurora-upper-blue: theme(colors.blue.500 / 14%);
+    --aurora-violet-echo-edge: theme(colors.violet.400 / 20%);
+    --aurora-violet-edge: theme(colors.violet.400 / 40%);
+    --aurora-blue-edge: theme(colors.blue.400 / 35%);
+    --aurora-cyan-edge: theme(colors.cyan.500 / 28%);
+  }
+}
+
+/* Shared spectral colors for the SVG delta and the text treatment. */
+@utility aurora-brand {
+  --brand-violet: theme(colors.violet.600);
+  --brand-blue: theme(colors.blue.600);
+  --brand-cyan: theme(colors.cyan.700);
+  @variant dark {
+    --brand-violet: theme(colors.violet.400);
+    --brand-blue: theme(colors.blue.400);
+    --brand-cyan: theme(colors.cyan.300);
+  }
+}
+
+@utility aurora-wordmark {
+  @apply bg-clip-text text-transparent;
+  background-image:
+    radial-gradient(
+      ellipse at 100% 110%,
+      color-mix(in oklab, var(--brand-violet) 65%, transparent),
+      transparent 65%
+    ),
+    radial-gradient(ellipse at 100% 40%, var(--brand-cyan), transparent 85%),
+    radial-gradient(ellipse at 15% 5%, var(--brand-violet), transparent 85%),
+    linear-gradient(var(--brand-blue), var(--brand-blue));
+}
+
+/* Keep the gradient mounted so both activation and deactivation can fade. */
+@utility sidebar-item {
+  @apply sidebar-active;
+  position: relative;
+  isolation: isolate;
+  transition:
+    color 200ms ease,
+    background-color 300ms ease;
+  &::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    z-index: -1;
+    border: 1px solid transparent;
+    border-radius: inherit;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 300ms ease;
+  }
+  &[aria-current="location"]::before {
+    opacity: 1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+    &::before {
+      transition: none;
+    }
+  }
+}
