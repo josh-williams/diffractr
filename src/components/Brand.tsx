@@ -1,4 +1,4 @@
-import logo from "../assets/diffraction-logo.png";
+import logo from "../assets/diffraction-logo.svg";
 
 export default function Brand() {
   return (
@@ -8,9 +8,9 @@ export default function Brand() {
     >
       <img
         src={logo}
-        width={26}
-        height={26}
-        className="size-[26px] shrink-0 object-contain opacity-75"
+        width={32}
+        height={32}
+        className="size-8 shrink-0 object-contain"
         alt=""
         aria-hidden="true"
       />

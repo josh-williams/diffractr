@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 338 264" role="img" aria-labelledby="title desc">
+  <title id="title">Diffraction</title>
+  <desc id="desc">Three overlapping violet, blue, and cyan triangles.</desc>
+  <defs>
+    <linearGradient id="violet" x1="0%" y1="100%" x2="58%" y2="0%">
+      <stop offset="0%" stop-color="#8B5CF6" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#8B5CF6" stop-opacity="0.75"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0%" y1="100%" x2="58%" y2="0%">
+      <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#3B82F6" stop-opacity="0.855"/>
+    </linearGradient>
+    <linearGradient id="cyan" x1="0%" y1="100%" x2="58%" y2="0%">
+      <stop offset="0%" stop-color="#22D3EE" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#22D3EE" stop-opacity="0.75"/>
+    </linearGradient>
+  </defs>
+  <path d="M97 44 L223 215 L34 229 Z" fill="url(#violet)"/>
+  <path d="M137 34 L263 205 L74 219 Z" fill="url(#blue)"/>
+  <path d="M177 24 L303 195 L114 209 Z" fill="url(#cyan)"/>
+</svg>
