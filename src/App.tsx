@@ -30,7 +30,7 @@ import { validateAnalysis } from "./core/analysis";
 import Markdown from "./components/Markdown";
 import DiffCard from "./components/DiffCard";
 import Dialog from "./components/Dialog";
-import Brand from "./components/Brand";
+import ReviewSidebar from "./components/ReviewSidebar";
 import FullFileDiff from "./components/FullFileDiff";
 
 const roleColors = {
@@ -111,7 +111,6 @@ export default function App({
       /* Keep the switch usable without storage. */
     }
   }, [theme]);
-  const [page, setPage] = useState("overview");
   const [comments, setComments] = useState<Comment[]>(loadComments);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [draft, setDraft] = useState("");
@@ -129,43 +128,6 @@ export default function App({
   }, [comments]);
   const total = stats.reduce((n, s) => n + s.additions + s.deletions, 0);
   const mainScrollRef = useRef<HTMLElement | null>(null);
-  useEffect(() => {
-    const scrollContainer = mainScrollRef.current;
-    if (!scrollContainer) return;
-    const parts = Array.from(
-      scrollContainer.querySelectorAll<HTMLElement>("[data-review-part]"),
-    );
-    let frame = 0;
-    const update = () => {
-      frame = 0;
-      let active: HTMLElement | undefined = parts[0];
-      for (const part of parts) {
-        if (part.getBoundingClientRect().top <= 120) active = part;
-      }
-      if (
-        scrollContainer.scrollTop > 0 &&
-        scrollContainer.scrollTop + scrollContainer.clientHeight >=
-          scrollContainer.scrollHeight - 2
-      ) {
-        active = parts.at(-1);
-      }
-      if (active) setPage(active.dataset.reviewPart!);
-    };
-    const schedule = () => {
-      if (!frame) frame = requestAnimationFrame(update);
-    };
-    scrollContainer.addEventListener("scroll", schedule, { passive: true });
-    window.addEventListener("resize", schedule);
-    const observer = new ResizeObserver(schedule);
-    observer.observe(scrollContainer);
-    update();
-    return () => {
-      scrollContainer.removeEventListener("scroll", schedule);
-      window.removeEventListener("resize", schedule);
-      observer.disconnect();
-      cancelAnimationFrame(frame);
-    };
-  }, []);
   const scrollFrame = useRef(0);
   useEffect(() => {
     const cancel = () => cancelAnimationFrame(scrollFrame.current);
@@ -268,49 +230,12 @@ export default function App({
   }
   return (
     <div className="min-h-screen md:flex md:h-screen md:overflow-hidden md:overscroll-none bg-mist-50 dark:bg-mist-900 bg-linear-to-br from-violet-500/3 via-transparent to-cyan-500/3 text-sm text-mist-800 dark:text-mist-200">
-      <aside className="border-b border-mist-200 dark:border-mist-800 bg-mist-100/80 dark:bg-mist-950/30 p-2 md:overflow-y-auto md:h-full md:min-h-0 md:shrink-0 md:w-60 md:border-r md:border-b-0">
-        <Brand />
-        <nav aria-label="Review navigation" className="space-y-1 text-sm">
-          <button
-            className={`sidebar-item flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-2 text-left ${page === "overview" ? "text-mist-950 dark:text-mist-100" : "text-mist-600 dark:text-mist-400 hover:bg-mist-200/60 dark:hover:bg-mist-800/70"}`}
-            aria-current={page === "overview" ? "location" : undefined}
-            onClick={() => navigate("overview")}
-          >
-            <span className="font-medium text-mist-950 dark:text-mist-100">
-              Overview
-            </span>
-          </button>
-          {analysis?.sections.map((s) => {
-            const owned = units.filter((unit) => s.unitIds.includes(unit.id));
-            const fileCount = s.fileIds.length;
-            const lineCount = owned.reduce(
-              (n, unit) => n + unit.newCount + unit.oldCount,
-              0,
-            );
-            const flagCount = analysis.flags.filter(
-              (flag) => flag.sectionId === s.id,
-            ).length;
-            return (
-              <button
-                key={s.id}
-                className={`sidebar-item flex w-full items-start gap-2 rounded-md border border-transparent px-2 py-2 text-left ${page === s.id ? "text-mist-950 dark:text-mist-100" : "text-mist-600 dark:text-mist-400 hover:bg-mist-200/60 dark:hover:bg-mist-800/70"}`}
-                aria-current={page === s.id ? "location" : undefined}
-                onClick={() => navigate(s.id)}
-              >
-                <span className="flex-1">
-                  <span className="block font-medium text-mist-950 dark:text-mist-100">
-                    {s.title}
-                  </span>
-                  <span className="mt-1 block text-xs text-mist-500 dark:text-mist-400">
-                    {fileCount} files · {lineCount} lines · {flagCount}{" "}
-                    {flagCount === 1 ? "flag" : "flags"}
-                  </span>
-                </span>
-              </button>
-            );
-          })}
-        </nav>
-      </aside>
+      <ReviewSidebar
+        analysis={analysis}
+        units={units}
+        mainScrollRef={mainScrollRef}
+        navigate={navigate}
+      />
       <div className="min-w-0 md:h-full md:min-h-0 md:min-w-0 md:flex-1 md:flex md:flex-col">
         <header className="flex min-h-12 flex-none flex-wrap items-center justify-between gap-2 border-b border-mist-200 bg-mist-50/95 px-4 py-2 backdrop-blur dark:border-mist-800 dark:bg-mist-900/95 md:px-6">
           <div className="flex items-center gap-2 text-mist-500 dark:text-mist-400 [&_strong]:font-medium [&_strong]:text-mist-800 [&_strong]:dark:text-mist-200">
