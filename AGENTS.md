@@ -1,6 +1,5 @@
 # Working on diffractr
 
-- Commit, push, tag, and publish only when explicitly requested. Keep iterations local otherwise.
 - Use Node 24 (`nvm use`) and install dependencies with `npm ci`.
 - Run `npm run check` for lint, formatting, tests, and type checking. Use `npm run format` to fix formatting.
 - Run `npm run test:package` for changes to the CLI, capture format, installation, build, or packaging. It builds and smoke-tests the installed tarball and self-contained skill.

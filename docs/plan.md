@@ -12,7 +12,7 @@ Each implementation task should receive: the problem, relevant brief sections, s
 
 Plan the next milestone in detail and keep later ones coarse. Record consequential technical decisions with their rationale. Add GitHub issues when execution or outside collaboration makes them useful; avoid maintaining duplicate task status in several places.
 
-Commit and push only when explicitly requested. Keep ongoing iterations local until then. Maintain installation instructions, usage documentation, and examples alongside the features they describe. Include the MIT license from the start. There is no separate open-source release milestone; a separate contributor guide remains deferred. Push and PR checks now validate source and packaged installation.
+Maintain installation instructions, usage documentation, and examples alongside the features they describe. Include the MIT license from the start. There is no separate open-source release milestone; a separate contributor guide remains deferred. Push and PR checks now validate source and packaged installation.
 
 ## Milestones
 
