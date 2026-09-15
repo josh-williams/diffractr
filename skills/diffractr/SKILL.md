@@ -1,13 +1,13 @@
 ---
-name: diffraction
-description: Prepare a local Diffraction review of repository changes, organized by behavior with explanations and anchored flags, and open it in the browser. Use when a user asks for a Diffraction review or an organized walkthrough of local changes.
+name: diffractr
+description: Prepare a local diffractr review of repository changes, organized by behavior with explanations and anchored flags, and open it in the browser. Use when a user asks for a diffractr review or an organized walkthrough of local changes.
 ---
 
-# Diffraction review
+# diffractr review
 
-Use Diffraction's CLI to capture source facts and validate your organization. Read [the review format](references/format.md) before authoring analysis.
+Use diffractr's CLI to capture source facts and validate your organization. Read [the review format](references/format.md) before authoring analysis.
 
-The CLI is bundled with this skill's source checkout. Invoke it with `node <skill-directory>/scripts/run.mjs <command>`. It requires the checkout's npm dependencies and built viewer; installation instructions are in the project's README. If dependencies or `dist/index.html` are missing, run `npm ci` and `npm run build` from that checkout.
+Invoke the bundled CLI with `node <skill-directory>/scripts/run.mjs <command>`. A skill installed with `diffractr install-skill` includes the compiled CLI and viewer; it needs only Node.js 22.12+ and Git, without a source checkout, npm dependencies, or build step. Keep using the bundled helper for a review so capture and validation use the same installed version. If its runtime is missing, reinstall the skill with the CLI. When deliberately working from the source checkout, build it with `npm ci` and `npm run build` first.
 
 1. Run `capture --repo <repository>` with the comparison base supplied by the user, if any. When automatic base resolution is ambiguous, inspect repository metadata to choose the intended base or ask the user; do not silently choose an unrelated branch. Capture includes all net changes since the merge base. It prints a temporary directory containing `capture.json`, `diff.txt`, and `analysis.yaml`.
 2. Read the numbered diff. Inspect any other repository code, tests, documentation, and available context needed to understand the change. The agent keeps its normal tools. Source coordinates and block selections must refer to the saved capture, even if live files change afterward. Recapture if the user wants the newer state reviewed.

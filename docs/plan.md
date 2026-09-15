@@ -1,4 +1,4 @@
-# Diffraction: implementation plan
+# diffractr: implementation plan
 
 Status: working plan, updated 2026-09-13. Build a dedicated application for local self-review, with Codex as the only V1 agent integration and MIT licensing. Milestone 1 is implemented as a runnable example prototype. Local capture, block-based analysis validation, organized browser review, and a bundled Codex skill are implemented. Broader agent evaluation remains.
 
@@ -69,3 +69,7 @@ The bundled Codex skill uses the existing agent session and its tools. It writes
 Evaluate the skill on larger real changes, comparing grouping quality, first-pass coverage, and repair effort. Verify interactive rendering and feedback for saved reviews, including Mermaid errors and split fragments. Exact move matching, rename presentation, richer split-fragment context, and handling checkout transformations remain follow-ups.
 
 The local scope remains fixed: all net changes since the branch's merge base, with no scope selector or committed-only mode.
+
+## Standalone CLI and installation
+
+The `diffractr` tarball bundles a compiled Node CLI and prebuilt browser viewer, with no runtime npm dependencies. `install-skill` installs a self-contained Codex skill with a copied runtime, independently of the source checkout or npx cache. `npm pack` builds the distribution; `npm run test:package` verifies an offline installation, capture/inspect/validate/open, and viewer assets. The package is prepared locally and remains unpublished.

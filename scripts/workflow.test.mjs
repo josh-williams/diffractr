@@ -22,7 +22,7 @@ afterEach(() => {
 });
 
 it("saves, validates, and reopens analysis without recapturing the repository", () => {
-  const dir = mkdtempSync(join(tmpdir(), "diffraction-workflow-"));
+  const dir = mkdtempSync(join(tmpdir(), "diffractr-workflow-"));
   dirs.push(dir);
   saveCapture(snapshot, dir);
   expect(loadCapture(dir)).toEqual({
@@ -50,7 +50,7 @@ it("saves, validates, and reopens analysis without recapturing the repository", 
 });
 
 it("keeps malformed analysis recoverable and refuses capture overwrites", () => {
-  const dir = mkdtempSync(join(tmpdir(), "diffraction-workflow-"));
+  const dir = mkdtempSync(join(tmpdir(), "diffractr-workflow-"));
   dirs.push(dir);
   saveCapture(snapshot, dir);
   writeFileSync(join(dir, "analysis.yaml"), "groups: [");
@@ -61,7 +61,7 @@ it("keeps malformed analysis recoverable and refuses capture overwrites", () => 
 });
 
 it("preserves saved block IDs, row mappings and units across reopening and browser parsing", () => {
-  const dir = mkdtempSync(join(tmpdir(), "diffraction-workflow-"));
+  const dir = mkdtempSync(join(tmpdir(), "diffractr-workflow-"));
   dirs.push(dir);
 
   // Simulate a historical numbering scheme unlike the current generator.
@@ -94,7 +94,7 @@ it("preserves saved block IDs, row mappings and units across reopening and brows
 });
 
 it("rejects legacy captures instead of silently reinterpreting their references", () => {
-  const dir = mkdtempSync(join(tmpdir(), "diffraction-workflow-"));
+  const dir = mkdtempSync(join(tmpdir(), "diffractr-workflow-"));
   dirs.push(dir);
   writeFileSync(
     join(dir, "capture.json"),

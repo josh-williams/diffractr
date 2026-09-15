@@ -1,3 +1,4 @@
+import { installSkill } from "./install-skill";
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import {
@@ -10,7 +11,7 @@ import {
 import { resolve, join } from "node:path";
 import { tmpdir } from "node:os";
 import { capture } from "./capture.mjs";
-import { serveSnapshot } from "./review.mjs";
+import { serveSnapshot } from "./server.mjs";
 import { snapshotSchema } from "../src/core/snapshot.ts";
 import {
   inventory,
@@ -125,9 +126,19 @@ export function readAnalysis(snapshot: Snapshot, path: string) {
 export async function main(args: string[]) {
   const [command, ...rest] = args;
 
+  if (command === "install-skill") {
+    if (rest.length && (rest.length !== 2 || rest[0] !== "--dest" || !rest[1]))
+      throw new Error("Usage: diffractr install-skill [--dest DIRECTORY]");
+    console.log(
+      `Installed skill at ${installSkill(rest[1])}. It is available to new Codex sessions.`,
+    );
+
+    return;
+  }
+
   if (!command || command === "--help" || rest.includes("--help")) {
     console.log(
-      `Usage: diffraction <command>\n\n  capture [--repo PATH] [--base REF] [--out DIRECTORY]\n  inspect DIRECTORY [--block B7]\n  validate DIRECTORY [--analysis FILE]\n  open DIRECTORY [--analysis FILE] [--port 5174]\n\nCapture writes an immutable capture.json, numbered diff.txt, and analysis.yaml template.\nEdit analysis.yaml, validate it, then open the saved review. No Git writes or agent calls.`,
+      `Usage: diffractr <command>\n\n  install-skill [--dest DIRECTORY]\n  capture [--repo PATH] [--base REF] [--out DIRECTORY]\n  inspect DIRECTORY [--block B7]\n  validate DIRECTORY [--analysis FILE]\n  open DIRECTORY [--analysis FILE] [--port 5174]\n\nCapture writes an immutable capture.json, numbered diff.txt, and analysis.yaml template.\nEdit analysis.yaml, validate it, then open the saved review. No Git writes or agent calls.`,
     );
 
     return;
@@ -175,7 +186,7 @@ export async function main(args: string[]) {
 
     const out = options["--out"]
       ? resolve(options["--out"])
-      : mkdtempSync(join(tmpdir(), "diffraction-"));
+      : mkdtempSync(join(tmpdir(), "diffractr-"));
 
     saveCapture(snapshot, out);
     console.log(

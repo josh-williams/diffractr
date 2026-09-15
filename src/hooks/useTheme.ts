@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 
 function loadTheme(): "light" | "dark" {
   try {
-    const saved = localStorage.getItem("diffraction:theme");
+    const saved =
+      localStorage.getItem("diffractr:theme") ??
+      localStorage.getItem("diffraction:theme");
 
     if (saved === "light" || saved === "dark") return saved;
   } catch {
@@ -20,7 +22,7 @@ export function useTheme() {
     document.documentElement.classList.toggle("dark", theme === "dark");
 
     try {
-      localStorage.setItem("diffraction:theme", theme);
+      localStorage.setItem("diffractr:theme", theme);
     } catch {
       /* Keep the switch usable without storage. */
     }

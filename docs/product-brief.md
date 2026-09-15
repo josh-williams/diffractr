@@ -1,4 +1,4 @@
-# Diffraction: product brief
+# diffractr: product brief
 
 Status: working brief, updated 2026-09-07. Confirmed decisions and requirements are distinguished from proposals and open questions.
 
@@ -75,7 +75,7 @@ A reviewer can open a large local change, understand its behavior through ordere
 
 ## Analysis authoring contract
 
-V1 uses a Codex skill plus a local CLI. The existing agent captures changes, investigates with its normal tools, writes YAML analysis, resolves validation errors, and starts the viewer. Diffraction does not launch an agent. Capture precedes analysis and binds references to immutable before/after source.
+V1 uses a Codex skill plus a local CLI. The existing agent captures changes, investigates with its normal tools, writes YAML analysis, resolves validation errors, and starts the viewer. diffractr does not launch an agent. Capture precedes analysis and binds references to immutable before/after source.
 
 Analysis contains ordered groups with titles, Markdown descriptions, and tool-generated block references. Omitting `rows` selects a whole block; quoted selectors such as `"5-28, 32"` select block-local rows. Changed rows have exactly one owner; context does not acquire ownership. Non-text changes have whole-change blocks. The application derives navigation IDs and flag ownership. Flags contain Markdown `text` and block/row anchors, with no title or authored group ID. Descriptions may contain Mermaid fences.
 

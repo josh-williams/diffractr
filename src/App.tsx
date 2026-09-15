@@ -108,7 +108,7 @@ export default function App({
 
     const link = document.createElement("a");
     link.href = url;
-    link.download = "diffraction-feedback.md";
+    link.download = "diffractr-feedback.md";
     link.click();
     URL.revokeObjectURL(url);
   }

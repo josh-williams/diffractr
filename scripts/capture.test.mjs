@@ -29,7 +29,7 @@ function write(root, path, data) {
 }
 
 function fixture() {
-  const root = mkdtempSync(join(tmpdir(), "diffraction-test-"));
+  const root = mkdtempSync(join(tmpdir(), "diffractr-test-"));
   roots.push(root);
   git(root, "init", "-b", "main");
   git(root, "config", "user.name", "Test");

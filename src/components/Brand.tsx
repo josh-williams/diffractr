@@ -1,10 +1,10 @@
-import logo from "../assets/diffraction-logo.svg";
+import logo from "../assets/diffractr-logo.svg";
 
 export default function Brand() {
   return (
     <div
       className="aurora-brand flex h-11 items-center gap-2 px-2 mb-2"
-      aria-label="Diffraction"
+      aria-label="diffractr"
     >
       <img
         src={logo}
@@ -18,7 +18,7 @@ export default function Brand() {
         className="aurora-wordmark text-base font-semibold tracking-[0.055em]"
         aria-hidden="true"
       >
-        Diffraction
+        diffractr
       </span>
     </div>
   );

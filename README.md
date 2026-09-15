@@ -1,47 +1,67 @@
-# Diffraction
+# diffractr
 
-Diffraction helps developers understand and review large code changes through behavior-based sections, concise explanations, and annotations anchored to the code.
+diffractr helps developers understand and review large code changes through behavior-based sections, concise explanations, and annotations anchored to the code.
 
 The initial workflow focuses on local self-review of coding-agent output, using Codex to organize and explain changes. GitHub PR review and cloud hosting are planned follow-ups.
 
-## Create an organized review
+## Install and review
 
-Requires Node.js 22.12 or newer, npm, and Git. From the Diffraction checkout:
+Requires Node.js 22.12 or newer and Git. The standalone package includes the CLI and built viewer; users do not need a source checkout, build tools, or runtime npm dependencies.
 
-```sh
-npm ci
-npm run build
-npm run diffraction -- capture --repo /path/to/repository
-```
-
-The capture command prints a temporary directory containing immutable source (`capture.json`), a numbered block inventory (`diff.txt`), and an analysis template (`analysis.yaml`). Have Codex read the diff and relevant repository context, then fill in the template using the [review format](skills/diffraction/references/format.md).
+The npm package is named `diffractr`, but is not published yet. Until publication, install a built tarball:
 
 ```sh
-npm run diffraction -- inspect /path/to/capture --block B7
-npm run diffraction -- validate /path/to/capture
-npm run diffraction -- open /path/to/capture
+npm install -g /path/to/diffractr-0.1.0.tgz
+diffractr install-skill
 ```
 
-Open the complete URL printed by `open`, including the snapshot fragment. It serves on `127.0.0.1:5174`; use `--port 5175` if occupied. Saved captures include their authoritative block inventory and can be reopened without the original repository or regenerating block references. Older version-1 captures must be recaptured; new captures use version 2. Editing `analysis.yaml` requires restarting `open` to load it again. Invalid analysis opens the complete-diff fallback with specific errors; a corrupted capture is rejected.
+Alternatively, run directly from a tarball without a global install:
 
-Whole blocks are selected by reference. Partial selections use quoted inclusive ranges such as `rows: "5-28, 32"`. Group descriptions support Markdown and Mermaid; flags have text and block/row anchors. The validator requires complete, non-overlapping ownership of changed rows and non-text changes. Split fragments preserve line numbers; full-file view supplies additional context.
+```sh
+npx --package=/path/to/diffractr-0.1.0.tgz diffractr install-skill
+```
+
+After npm publication, the equivalent command will be `npx diffractr install-skill`.
 
 ### Codex skill
 
-The bundled [Diffraction skill](skills/diffraction/SKILL.md) guides capture, investigation, analysis, validation, and serving. To make it discoverable in Codex, symlink the skill from this checkout:
+`install-skill` installs the [skill](skills/diffractr/SKILL.md) to `~/.agents/skills/diffractr`, including its own compiled runtime and viewer. New Codex sessions can use `$diffractr` to review local changes. The installed skill works even if the original package or npx cache is removed. No symlink or API key is needed.
+
+Use `install-skill --dest /custom/path/diffractr` for a different destination. Existing destinations are never overwritten. To upgrade, remove the previous skill installation and run the command from the desired package version again. Renaming does not remove an older separately installed skill.
+
+### CLI workflow
 
 ```sh
-mkdir -p ~/.agents/skills
-ln -s /path/to/diffraction/skills/diffraction ~/.agents/skills/diffraction
+diffractr capture --repo /path/to/repository
+diffractr inspect /path/to/capture --block B7
+diffractr validate /path/to/capture
+diffractr open /path/to/capture
 ```
 
-Then ask Codex to use `$diffraction` to review a repository's local changes. Its helper resolves the CLI relative to the checkout, so keep the checkout and its installed dependencies available. Diffraction does not launch another agent or require a separate API key. The package is not published to npm yet; the commands above work from the local checkout.
+Capture prints a fresh temporary directory containing immutable source and its authoritative block inventory (`capture.json`), a readable numbered diff (`diff.txt`), and an analysis template (`analysis.yaml`). The agent fills in that template using the [review format](skills/diffractr/references/format.md), then validates and opens it. `--out` selects a persistent capture directory instead.
+
+Open the complete URL printed by `open`, including the snapshot fragment. It serves on `127.0.0.1:5174`; use `--port 5175` if occupied. Saved captures reopen without the repository or regenerating block references. Old version-1 captures must be recaptured; new captures use version 2. Editing `analysis.yaml` requires restarting `open`. Invalid analysis opens the complete diff with errors; a corrupted capture is rejected.
+
+Whole blocks use references; partial selections use quoted inclusive ranges such as `rows: "5-28, 32"`. Descriptions support Markdown and Mermaid, and flags have text and block/row anchors. Validation requires complete, non-overlapping ownership. Split fragments preserve line numbers; full-file view supplies additional context.
+
+## Build a distributable package
+
+For maintainers, from the checkout:
+
+```sh
+npm ci
+npm pack
+```
+
+The prepack step builds the viewer and compiled CLI. The resulting `diffractr-0.1.0.tgz` contains built assets, the skill, documentation, and licenses. It excludes application source, tests, and development dependencies. `npm run test:package` builds and tests the tarball through an offline installation in a temporary Git repository, including the independently installed skill and authenticated HTTP viewer.
+
+Publishing is a separate step; this repository remains marked private until a release is explicitly prepared.
 
 ## Review a local repository without analysis
 
 Requires Node.js 22.12 or newer, npm, and Git.
 
-From the Diffraction checkout:
+From the diffractr checkout:
 
 ```sh
 npm ci
@@ -49,7 +69,7 @@ npm run build
 npm run review -- --repo /path/to/repository
 ```
 
-Open the complete URL printed by the command. It serves the captured review at `127.0.0.1:5174`; the URL fragment grants access to that session's snapshot. Use `--port 5175` if the port is occupied. To invoke it from another repository after building, run `node /path/to/diffraction/scripts/review.mjs` there.
+Open the complete URL printed by the command. It serves the captured review at `127.0.0.1:5174`; the URL fragment grants access to that session's snapshot. Use `--port 5175` if the port is occupied. To invoke it from another repository after building, run `node /path/to/diffractr/scripts/review.mjs` there.
 
 The command captures all net changes from the comparison branch's merge base to the current files on disk, including committed, staged, unstaged, and non-ignored untracked changes. It does not fetch, alter the index, or modify files. Each review is a fixed snapshot; run the command again to capture later edits. Feedback is retained per snapshot in browser storage on the same host and port.
 
@@ -87,7 +107,8 @@ Draft comments persist in this browser for the example snapshot. They are not se
 
 ```sh
 npm test          # Coverage validation, diff projection, and feedback anchors
-npm run build    # Type-check and produce dist/
+npm run build    # Type-check and build CLI plus dist/viewer/
+npm run test:package # Verify the standalone tarball and installed skill
 npm run preview  # Serve the example production build locally
 npm run format   # Format with Oxfmt
 npm run format:check # Check formatting without writing

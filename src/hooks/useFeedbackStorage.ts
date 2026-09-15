@@ -9,7 +9,7 @@ import {
 
 // App is keyed by snapshot ID; each review owns its initial feedback state.
 export function useFeedbackStorage(snapshot: Snapshot) {
-  const storageKey = `diffraction:feedback:${snapshot.id}`;
+  const storageKey = `diffractr:feedback:${snapshot.id}`;
 
   const commentSchema = anchorSchema.and(
     z.object({
@@ -23,7 +23,13 @@ export function useFeedbackStorage(snapshot: Snapshot) {
     try {
       const result = z
         .array(commentSchema)
-        .safeParse(JSON.parse(localStorage.getItem(storageKey) ?? "[]"));
+        .safeParse(
+          JSON.parse(
+            localStorage.getItem(storageKey) ??
+              localStorage.getItem(`diffraction:feedback:${snapshot.id}`) ??
+              "[]",
+          ),
+        );
 
       if (!result.success) return [];
       exportFeedback(snapshot, result.data);

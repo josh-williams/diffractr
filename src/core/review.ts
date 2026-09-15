@@ -249,7 +249,7 @@ export function exportFeedback(
   snapshot: Snapshot,
   comments: Comment[],
 ): string {
-  const header = `# Diffraction review feedback\n\nRepository: ${snapshot.repository}\nBranch: ${snapshot.branch}\nBase: ${snapshot.base}\n${snapshot.mergeBase ? `Merge base: ${snapshot.mergeBase}\n` : ""}Snapshot: ${snapshot.id}\n\nCheck the current code against this snapshot before applying feedback.\n`;
+  const header = `# diffractr review feedback\n\nRepository: ${snapshot.repository}\nBranch: ${snapshot.branch}\nBase: ${snapshot.base}\n${snapshot.mergeBase ? `Merge base: ${snapshot.mergeBase}\n` : ""}Snapshot: ${snapshot.id}\n\nCheck the current code against this snapshot before applying feedback.\n`;
 
   return (
     header +

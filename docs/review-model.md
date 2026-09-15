@@ -1,6 +1,6 @@
 # Review model
 
-Source facts and authored analysis are separate. Source types and diff projection live in `src/core/review.ts`; block inventory, row selection, and analysis validation live in `src/core/analysis.ts`. The [authoring reference](../skills/diffraction/references/format.md) defines the YAML contract. The invitations example uses that same contract.
+Source facts and authored analysis are separate. Source types and diff projection live in `src/core/review.ts`; block inventory, row selection, and analysis validation live in `src/core/analysis.ts`. The [authoring reference](../skills/diffractr/references/format.md) defines the YAML contract. The invitations example uses that same contract.
 
 ## Artifact boundaries
 

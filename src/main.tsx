@@ -23,10 +23,7 @@ root.render(<p role="status">Loading review…</p>);
 async function start() {
   const token = new URLSearchParams(location.hash.slice(1)).get("snapshot");
 
-  if (
-    !token &&
-    document.querySelector('meta[name="diffraction-local-review"]')
-  ) {
+  if (!token && document.querySelector('meta[name="diffractr-local-review"]')) {
     throw new Error(
       "Open the complete review URL printed by the local command, including its snapshot fragment.",
     );
