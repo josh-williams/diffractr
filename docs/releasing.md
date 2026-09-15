@@ -4,47 +4,9 @@
 
 The workflow checks the tag and lockfile versions, runs lint, formatting checks and tests, builds once, and tests an offline installation of the resulting tarball before publishing that same file. It uses Node 24 and npm trusted publishing, with provenance and no stored npm token.
 
-## First publication
+## Release a new version
 
-Use Node 24 and npm 11.5.1 or newer for release work. Before the initial publish, commit and push the release setup, then prepare and test the artifact:
-
-```sh
-npm ci
-npm run lint
-npm run format:check
-npm test
-npm run release:check -- v0.1.0
-npm pack
-node scripts/test-package.mjs ./diffractr-0.1.0.tgz
-```
-
-Log in to the npm account that should own the package. Publishing the tarball creates the package; complete npm's browser login and 2FA prompts locally:
-
-```sh
-npm login --registry=https://registry.npmjs.org/
-npm publish ./diffractr-0.1.0.tgz --ignore-scripts --access public
-```
-
-Tag the committed source used to build that artifact:
-
-```sh
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-Do not publish a GitHub release for this bootstrap version: it is already on npm, and the workflow would try to publish it again. npm does not allow overwriting a published version. The initial manual publication does not have GitHub Actions provenance.
-
-In the npm package's Settings → Trusted Publisher, select GitHub Actions:
-
-- Organization or user: `josh-williams`
-- Repository: `diffractr`
-- Workflow filename: `publish.yml`
-- Environment: leave blank
-- Allow direct publishing with `npm publish` if the settings offer that choice.
-
-No npm secret needs to be added to GitHub. See the [npm trusted publishing documentation](https://docs.npmjs.com/trusted-publishers/) for the account setup.
-
-## Subsequent releases
+Use Node 24 and npm 11.5.1 or newer for release work.
 
 Start on `main` with a clean working tree and the intended changes committed. For a patch release:
 
@@ -63,7 +25,7 @@ If checks fail before publishing, fix the issue and prepare a new version/tag. I
 ## Testing an existing artifact
 
 ```sh
-node scripts/test-package.mjs /absolute/path/to/diffractr-0.1.0.tgz
+node scripts/test-package.mjs /absolute/path/to/diffractr-<version>.tgz
 ```
 
 This leaves the supplied tarball in place. `npm run test:package` remains the convenience command that builds and tests a temporary tarball. The smoke test verifies the installed package version against the checkout, CLI execution, self-contained skill installation, capture, validation, and authenticated viewer serving.
