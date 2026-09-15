@@ -6,10 +6,17 @@ import { dirname, resolve, extname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { capture } from "./capture.mjs";
 
+/**
+ * @param {import('../src/core/review').Snapshot} snapshot
+ * @param {{port?: number, analysis?: unknown, errors?: string[], dist?: string}} options
+ * @returns {Promise<{server: import('node:http').Server, url: string}>}
+ */
 export function serveSnapshot(
   snapshot,
   {
     port = 0,
+    analysis,
+    errors = [],
     dist = resolve(dirname(fileURLToPath(import.meta.url)), "../dist"),
   } = {},
 ) {
@@ -42,13 +49,19 @@ export function serveSnapshot(
       return;
     }
     const url = new URL(req.url, `http://${authority}`);
-    if (url.pathname === "/api/snapshot") {
+    if (["/api/snapshot", "/api/review"].includes(url.pathname)) {
       if (req.headers.authorization !== `Bearer ${token}`) {
         res.writeHead(403).end();
         return;
       }
       res.setHeader("Content-Type", "application/json");
-      res.end(JSON.stringify(snapshot));
+      res.end(
+        JSON.stringify(
+          url.pathname === "/api/snapshot"
+            ? snapshot
+            : { snapshot, analysis, errors },
+        ),
+      );
       return;
     }
     try {

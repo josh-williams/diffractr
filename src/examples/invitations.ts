@@ -1,4 +1,5 @@
-import { indexChanges, type Analysis, type Snapshot } from "../core/review";
+import { inventory, type AuthoredAnalysis } from "../core/analysis";
+import { indexChanges, type Snapshot } from "../core/review";
 
 export const snapshot: Snapshot = {
   id: "example-invitations-v1",
@@ -191,62 +192,42 @@ const expiryUnits = units.filter(
 const resendUnits = units.filter((u) => !expiryUnits.includes(u));
 const expiryCheck = serviceUnits[1];
 const renewal = serviceUnits[2];
-export const analysis: Analysis = {
+export const analysis: AuthoredAnalysis = {
   version: 1,
   snapshotId: snapshot.id,
   title: "Give team invitations an expiry",
-  summary:
+  description:
     "Invitations now have a seven-day lifetime. Expired links can no longer create memberships, and resending an invitation renews its validity. The API exposes the expiry date to clients.",
-  sections: [
+  groups: [
     {
-      id: "expiry",
       title: "Expire invitations after seven days",
       description:
-        "New invitations receive an expiry timestamp seven days from creation. Acceptance checks that timestamp before creating a membership, so expired invitations leave membership unchanged. The API schema and generated response type expose the new field.\n\nTests cover the seven-day lifetime and rejection at the exact expiry boundary.",
-      unitIds: expiryUnits.map((u) => u.id),
-      diagrams: [
-        {
-          caption: "Invitation acceptance",
-          steps: [
-            "Find invitation",
-            "Check expiry · stop and reject if expired",
-            "Create membership for a valid invitation",
-          ],
-        },
-      ],
+        "New invitations receive an expiry timestamp seven days from creation. Acceptance checks that timestamp before creating a membership, so expired invitations leave membership unchanged. The API schema and generated response type expose the new field.\n\nTests cover the seven-day lifetime and rejection at the exact expiry boundary.\n\n```mermaid\nflowchart LR\n  Find[Find invitation] --> Check[Check expiry]\n  Check --> Reject[Reject expired invitation]\n  Check --> Create[Create membership]\n```",
+      changes: inventory(snapshot)
+        .filter((b) => b.unit && expiryUnits.some((u) => u.id === b.unit!.id))
+        .map((b) => ({ block: b.id })),
     },
     {
-      id: "resend",
       title: "Renew invitations when resent",
       description:
         "Resending an invitation gives it a fresh seven-day lifetime before sending the email. The existing invitation is updated in place, keeping the same identifier. A test checks that resending extends its expiry.",
-      unitIds: resendUnits.map((u) => u.id),
-      diagrams: [],
+      changes: inventory(snapshot)
+        .filter((b) => b.unit && resendUnits.some((u) => u.id === b.unit!.id))
+        .map((b) => ({ block: b.id })),
     },
   ],
   flags: [
     {
-      id: "cutoff",
-      sectionId: "expiry",
-      title: "The cutoff is inclusive",
-      body: "An invitation expires at the exact cutoff timestamp. Check whether this matches the intended product behavior.",
+      text: "An invitation expires at the exact cutoff timestamp. Check whether this matches the intended product behavior.",
       anchor: {
-        fileId: "service",
-        side: "additions",
-        start: expiryCheck.newStart + 1,
-        end: expiryCheck.newStart + 3,
+        block: inventory(snapshot).find((b) => b.unit?.id === expiryCheck.id)!
+          .id,
       },
     },
     {
-      id: "existing-links",
-      sectionId: "resend",
-      title: "An old link becomes valid again",
-      body: "Renewal keeps the same invitation identifier. Anyone holding the previous link can use it during the renewed window.",
+      text: "Renewal keeps the same invitation identifier. Anyone holding the previous link can use it during the renewed window.",
       anchor: {
-        fileId: "service",
-        side: "additions",
-        start: renewal.newStart + 1,
-        end: renewal.newStart + 3,
+        block: inventory(snapshot).find((b) => b.unit?.id === renewal.id)!.id,
       },
     },
   ],

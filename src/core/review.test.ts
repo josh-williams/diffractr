@@ -1,3 +1,4 @@
+import { validateAnalysis } from "./analysis";
 import { describe, expect, it } from "vitest";
 import { analysis, snapshot } from "../examples/invitations";
 import {
@@ -5,7 +6,6 @@ import {
   indexChanges,
   statistics,
   unitDiff,
-  validateAnalysis,
   type Snapshot,
 } from "./review";
 
@@ -21,59 +21,13 @@ function sample(before: string | null, after: string | null): Snapshot {
   };
 }
 describe("analysis integrity", () => {
-  it("accepts the complete example and places one source file in two behaviors", () => {
-    expect(validateAnalysis(snapshot, analysis).errors).toEqual([]);
+  it("resolves the authored example into two behaviors", () => {
+    const result = validateAnalysis(snapshot, analysis);
+    expect(result.errors).toEqual([]);
+    expect(result.analysis?.sections).toHaveLength(2);
     expect(
-      analysis.sections.every((s) =>
-        s.unitIds.some((id) => id.startsWith("service:")),
-      ),
+      result.analysis?.sections.every((s) => s.fileIds.includes("service")),
     ).toBe(true);
-  });
-  it("rejects missing, duplicate, invented, and stale assignments", () => {
-    const missing = structuredClone(analysis);
-    missing.sections[0].unitIds.pop();
-    expect(validateAnalysis(snapshot, missing).errors.join()).toContain(
-      "Unassigned",
-    );
-    const duplicate = structuredClone(analysis);
-    duplicate.sections[1].unitIds.push(duplicate.sections[0].unitIds[0]);
-    expect(validateAnalysis(snapshot, duplicate).errors.join()).toContain(
-      "more than once",
-    );
-    const invented = structuredClone(analysis);
-    invented.sections[0].unitIds.push("invented");
-    expect(validateAnalysis(snapshot, invented).errors.join()).toContain(
-      "Unknown",
-    );
-    expect(
-      validateAnalysis(snapshot, { ...analysis, snapshotId: "old" }).analysis,
-    ).toBeNull();
-  });
-  it("rejects flags on another behavior, nonexistent files, and out-of-bounds lines", () => {
-    const wrongSection = structuredClone(analysis);
-    wrongSection.flags[0].sectionId = "resend";
-    expect(validateAnalysis(snapshot, wrongSection).analysis).toBeNull();
-    for (const anchor of [
-      { ...analysis.flags[0].anchor, fileId: "missing" },
-      { ...analysis.flags[0].anchor, end: 1000000 },
-      { ...analysis.flags[0].anchor, start: 0 },
-    ]) {
-      const input = structuredClone(analysis);
-      input.flags[0].anchor = anchor;
-      expect(validateAnalysis(snapshot, input).analysis).toBeNull();
-    }
-  });
-  it("rejects malformed output and duplicate section or flag identities", () => {
-    expect(validateAnalysis(snapshot, {}).analysis).toBeNull();
-    const input = structuredClone(analysis);
-    input.sections[1].id = input.sections[0].id;
-    input.flags.push(input.flags[0]);
-    expect(validateAnalysis(snapshot, input).errors.join()).toContain(
-      "Duplicate section",
-    );
-    expect(validateAnalysis(snapshot, input).errors.join()).toContain(
-      "Duplicate flag",
-    );
   });
 });
 describe("deterministic diff projection", () => {

@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowDown,
   ArrowRight,
   Check,
   ChevronRight,
@@ -22,12 +21,13 @@ import {
   exportFeedback,
   indexChanges,
   statistics,
-  validateAnalysis,
   type Anchor,
   type Comment,
   type SourceFile,
   type Snapshot,
 } from "./core/review";
+import { validateAnalysis } from "./core/analysis";
+import Markdown from "./components/Markdown";
 import DiffCard from "./components/DiffCard";
 import Dialog from "./components/Dialog";
 import Brand from "./components/Brand";
@@ -60,21 +60,27 @@ export default function App({
   snapshot,
   inputAnalysis,
   example = false,
+  analysisErrors = [],
 }: {
   snapshot: Snapshot;
   inputAnalysis?: unknown;
   example?: boolean;
+  analysisErrors?: string[];
 }) {
   const validation = useMemo(
     () =>
       inputAnalysis
         ? validateAnalysis(snapshot, inputAnalysis)
-        : { analysis: null, errors: [] },
+        : { analysis: null, units: [], errors: [] },
     [snapshot, inputAnalysis],
   );
   const analysis = validation.analysis;
-  const units = useMemo(() => indexChanges(snapshot), [snapshot]);
-  const stats = useMemo(() => statistics(snapshot, units), [snapshot, units]);
+  const sourceUnits = useMemo(() => indexChanges(snapshot), [snapshot]);
+  const units = analysis ? validation.units : sourceUnits;
+  const stats = useMemo(
+    () => statistics(snapshot, sourceUnits),
+    [snapshot, sourceUnits],
+  );
   const storageKey = `diffraction:feedback:${snapshot.id}`;
   const commentSchema = anchorSchema.and(
     z.object({
@@ -276,7 +282,7 @@ export default function App({
           </button>
           {analysis?.sections.map((s) => {
             const owned = units.filter((unit) => s.unitIds.includes(unit.id));
-            const fileCount = new Set(owned.map((unit) => unit.fileId)).size;
+            const fileCount = s.fileIds.length;
             const lineCount = owned.reduce(
               (n, unit) => n + unit.newCount + unit.oldCount,
               0,
@@ -384,28 +390,33 @@ export default function App({
               {analysis?.title ??
                 (snapshot.files.length ? "Local changes" : "No local changes")}
             </h1>
-            <p className="mt-2 max-w-5xl leading-6 text-mist-600 dark:text-mist-400">
-              {analysis?.summary ??
-                (inputAnalysis
-                  ? "Analysis could not be validated. All changed files are available below."
-                  : `${snapshot.repository} · ${snapshot.files.length} changed files`)}
-            </p>
-            {!analysis && inputAnalysis != null && (
-              <div
-                className="my-3 rounded border border-mist-300 dark:border-mist-700 bg-mist-100 dark:bg-mist-900 p-3 [&_button]:underline"
-                role="alert"
-              >
-                <strong>Analysis unavailable</strong>
-                <ul>
-                  {validation.errors.map((e) => (
-                    <li key={e}>{e}</li>
-                  ))}
-                </ul>
-                <button onClick={() => navigate("files")}>
-                  Open all files
-                </button>
-              </div>
-            )}
+            <div className="mt-2 max-w-5xl leading-6 text-mist-600 dark:text-mist-400">
+              <Markdown
+                text={
+                  analysis?.summary ??
+                  (inputAnalysis
+                    ? "Analysis could not be validated. All changed files are available below."
+                    : `${snapshot.repository} · ${snapshot.files.length} changed files`)
+                }
+              />
+            </div>
+            {!analysis &&
+              (inputAnalysis != null || analysisErrors.length > 0) && (
+                <div
+                  className="my-3 rounded border border-mist-300 dark:border-mist-700 bg-mist-100 dark:bg-mist-900 p-3 [&_button]:underline"
+                  role="alert"
+                >
+                  <strong>Analysis unavailable</strong>
+                  <ul>
+                    {[...analysisErrors, ...validation.errors].map((e) => (
+                      <li key={e}>{e}</li>
+                    ))}
+                  </ul>
+                  <button onClick={() => navigate("files")}>
+                    Open all files
+                  </button>
+                </div>
+              )}
             <div className="my-4 flex flex-wrap gap-4 text-xs text-mist-500 dark:text-mist-400 [&>span]:flex [&>span]:items-center [&>span]:gap-1.5">
               <span>
                 <FileCode2 size={15} />
@@ -482,11 +493,9 @@ export default function App({
                     </span>
                     <div>
                       <h3>{s.title}</h3>
-                      <p>{s.description.split("\n")[0]}</p>
+                      <Markdown text={s.description.split("\n\n")[0]} />
                       <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-mist-500 dark:text-mist-400">
-                        <span>
-                          {new Set(owned.map((u) => u.fileId)).size} files
-                        </span>
+                        <span>{s.fileIds.length} files</span>
                         <span>
                           {owned.reduce(
                             (n, u) => n + u.newCount + u.oldCount,
@@ -517,11 +526,12 @@ export default function App({
             const groups = [
               ...new Set(
                 section
-                  ? selected.map((unit) => unit.fileId)
+                  ? section.fileIds
                   : snapshot.files.map((file) => file.id),
               ),
             ].map((id) => ({
               file: snapshot.files.find((file) => file.id === id)!,
+              metadata: !section || section.metadataFileIds.includes(id),
               units: selected.filter((unit) => unit.fileId === id),
             }));
             const flags =
@@ -547,27 +557,9 @@ export default function App({
                 </h2>
                 {section ? (
                   <div className="mt-2 max-w-5xl space-y-2 leading-6 text-mist-600 dark:text-mist-400">
-                    {section.description.split("\n\n").map((p) => (
-                      <p key={p}>{p}</p>
-                    ))}
+                    <Markdown text={section.description} />
                   </div>
                 ) : null}
-                {section?.diagrams.map((d) => (
-                  <figure
-                    className="my-3 rounded-lg border border-mist-200 bg-mist-100/60 p-3 dark:border-mist-700 dark:bg-mist-800/40 [&_figcaption]:mb-2 [&_figcaption]:font-medium [&_figcaption]:text-mist-800 [&_figcaption]:dark:text-mist-200 [&_ol]:flex [&_ol]:flex-wrap [&_ol]:items-center [&_ol]:gap-2 [&_li]:flex [&_li]:items-center [&_li]:gap-2 [&_li>span]:rounded [&_li>span]:bg-mist-100 [&_li>span]:dark:bg-mist-900 [&_li>span]:px-2 [&_li>span]:py-1 [&_li>span]:text-xs [&_svg]:-rotate-90 [&_svg]:text-mist-400 [&_svg]:dark:text-mist-500"
-                    key={d.caption}
-                  >
-                    <figcaption>{d.caption}</figcaption>
-                    <ol>
-                      {d.steps.map((step, i) => (
-                        <li key={i}>
-                          <span>{step}</span>
-                          {i < d.steps.length - 1 && <ArrowDown size={15} />}
-                        </li>
-                      ))}
-                    </ol>
-                  </figure>
-                ))}
                 <div className="mt-4 mb-2 flex items-center justify-between [&_h2]:flex [&_h2]:items-center [&_h2]:gap-2 [&_h2>span]:text-xs [&_h2>span]:font-normal [&_h2>span]:text-mist-500 [&_h2>span]:dark:text-mist-400">
                   <h2>
                     Code & context <span>{groups.length} files</span>
@@ -581,10 +573,8 @@ export default function App({
                   <DiffCard
                     key={`${id}:${group.file.id}`}
                     {...group}
-                    allUnits={units}
-                    flags={flags.filter(
-                      (f) => f.anchor.fileId === group.file.id,
-                    )}
+                    allUnits={sourceUnits}
+                    flags={flags.filter((f) => f.fileId === group.file.id)}
                     comments={comments.filter(
                       (c) => c.fileId === group.file.id,
                     )}

@@ -1,6 +1,35 @@
 import { z } from "zod";
 
+const blockSchema = z.object({
+  id: z.string().min(1),
+  fileId: z.string().min(1),
+  path: z.string(),
+  kind: z.enum(["text", "metadata"]),
+  rows: z.array(
+    z.object({
+      n: z.number().int().positive(),
+      op: z.enum([" ", "+", "-"]),
+      text: z.string(),
+      oldLine: z.number().int().positive().optional(),
+      newLine: z.number().int().positive().optional(),
+    }),
+  ),
+  unit: z
+    .object({
+      id: z.string().min(1),
+      fileId: z.string().min(1),
+      oldStart: z.number().int().nonnegative(),
+      oldCount: z.number().int().nonnegative(),
+      newStart: z.number().int().nonnegative(),
+      newCount: z.number().int().nonnegative(),
+      split: z.boolean().optional(),
+    })
+    .optional(),
+  notice: z.string().optional(),
+});
+
 export const snapshotSchema = z.object({
+  inventory: z.array(blockSchema).optional(),
   id: z.string().min(1),
   repository: z.string().min(1),
   branch: z.string().min(1),

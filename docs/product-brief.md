@@ -72,3 +72,11 @@ Use Tailwind CSS 4 with a custom Mist palette for application surfaces: an equal
 ## Proposed first success criterion
 
 A reviewer can open a large local change, understand its behavior through ordered semantic sections, inspect useful flags, leave precisely anchored feedback, and export that feedback for Codex. Evaluate orientation time, comprehension, annotation quality, complete coverage, and generation cost. Progress preservation across revisions is not a prerequisite for the initial local workflow.
+
+## Analysis authoring contract
+
+V1 uses a Codex skill plus a local CLI. The existing agent captures changes, investigates with its normal tools, writes YAML analysis, resolves validation errors, and starts the viewer. Diffraction does not launch an agent. Capture precedes analysis and binds references to immutable before/after source.
+
+Analysis contains ordered groups with titles, Markdown descriptions, and tool-generated block references. Omitting `rows` selects a whole block; quoted selectors such as `"5-28, 32"` select block-local rows. Changed rows have exactly one owner; context does not acquire ownership. Non-text changes have whole-change blocks. The application derives navigation IDs and flag ownership. Flags contain Markdown `text` and block/row anchors, with no title or authored group ID. Descriptions may contain Mermaid fences.
+
+Flags surface consequential, non-obvious details, including possible defects encountered while understanding the change. The agent is not tasked with a separate defect hunt or a quota of findings. Invalid analysis remains repairable through CLI validation, and the viewer retains the complete diff.

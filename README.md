@@ -4,7 +4,40 @@ Diffraction helps developers understand and review large code changes through be
 
 The initial workflow focuses on local self-review of coding-agent output, using Codex to organize and explain changes. GitHub PR review and cloud hosting are planned follow-ups.
 
-## Review a local repository
+## Create an organized review
+
+Requires Node.js 22.12 or newer, npm, and Git. From the Diffraction checkout:
+
+```sh
+npm ci
+npm run build
+npm run diffraction -- capture --repo /path/to/repository
+```
+
+The capture command prints a temporary directory containing immutable source (`capture.json`), a numbered block inventory (`diff.txt`), and an analysis template (`analysis.yaml`). Have Codex read the diff and relevant repository context, then fill in the template using the [review format](skills/diffraction/references/format.md).
+
+```sh
+npm run diffraction -- inspect /path/to/capture --block B7
+npm run diffraction -- validate /path/to/capture
+npm run diffraction -- open /path/to/capture
+```
+
+Open the complete URL printed by `open`, including the snapshot fragment. It serves on `127.0.0.1:5174`; use `--port 5175` if occupied. Saved captures include their authoritative block inventory and can be reopened without the original repository or regenerating block references. Older version-1 captures must be recaptured; new captures use version 2. Editing `analysis.yaml` requires restarting `open` to load it again. Invalid analysis opens the complete-diff fallback with specific errors; a corrupted capture is rejected.
+
+Whole blocks are selected by reference. Partial selections use quoted inclusive ranges such as `rows: "5-28, 32"`. Group descriptions support Markdown and Mermaid; flags have text and block/row anchors. The validator requires complete, non-overlapping ownership of changed rows and non-text changes. Split fragments preserve line numbers; full-file view supplies additional context.
+
+### Codex skill
+
+The bundled [Diffraction skill](skills/diffraction/SKILL.md) guides capture, investigation, analysis, validation, and serving. To make it discoverable in Codex, symlink the skill from this checkout:
+
+```sh
+mkdir -p ~/.agents/skills
+ln -s /path/to/diffraction/skills/diffraction ~/.agents/skills/diffraction
+```
+
+Then ask Codex to use `$diffraction` to review a repository's local changes. Its helper resolves the CLI relative to the checkout, so keep the checkout and its installed dependencies available. Diffraction does not launch another agent or require a separate API key. The package is not published to npm yet; the commands above work from the local checkout.
+
+## Review a local repository without analysis
 
 Requires Node.js 22.12 or newer, npm, and Git.
 
@@ -28,7 +61,7 @@ npm run review -- --repo /path/to/repository --base origin/trunk
 
 The override selects the comparison reference, not a different change scope. Captures need an existing commit and no unresolved merge conflicts. Ordinary repositories, linked worktrees, and detached HEAD are supported.
 
-Real reviews currently show all changed files without generated groups, explanations, or flags. Text diffs retain original coordinates, context expansion, line feedback, and Markdown export. Binary and non-UTF-8 files, symlinks, submodules, special files, and text over 2 MiB display notices. Empty-file and mode changes remain visible. Renames currently appear as a deletion plus an addition. File roles use basic filename/header heuristics, with unmatched files classified as Other.
+The direct `review` command shows all changed files without analysis. Use the saved-capture workflow above for organized reviews. Text diffs retain original coordinates, context expansion, line feedback, and Markdown export. Binary and non-UTF-8 files, symlinks, submodules, special files, and text over 2 MiB display notices. Empty-file and mode changes remain visible. Renames currently appear as a deletion plus an addition. File roles use basic filename/header heuristics, with unmatched files classified as Other.
 
 ## Run the example
 
@@ -59,7 +92,7 @@ npm run preview  # Serve the example production build locally
 npm run format   # Format source and configuration
 ```
 
-The app uses React, TypeScript, Vite, Tailwind CSS 4, Pierre's diff components, and Zod. The first milestone establishes the review model and browser interactions. Local Git capture and basic file classification are implemented. Codex-generated analysis and move matching are next; the example supplies its descriptions and file roles explicitly.
+The app uses React, TypeScript, Vite, Tailwind CSS 4, Pierre's diff components, and Zod. The first milestone establishes the review model and browser interactions. Local Git capture and basic file classification are implemented. The skill and saved-analysis workflow are implemented; exact move matching and broader agent evaluations remain future work. The example supplies its descriptions and file roles explicitly.
 
 ## Project documentation
 

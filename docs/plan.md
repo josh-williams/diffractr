@@ -1,6 +1,6 @@
 # Diffraction: implementation plan
 
-Status: working plan, updated 2026-09-12. Build a dedicated application for local self-review, with Codex as the only V1 agent integration and MIT licensing. Milestone 1 is implemented as a runnable example prototype. Local snapshot capture and browser review are implemented; Codex-generated analysis is next.
+Status: working plan, updated 2026-09-13. Build a dedicated application for local self-review, with Codex as the only V1 agent integration and MIT licensing. Milestone 1 is implemented as a runnable example prototype. Local capture, block-based analysis validation, organized browser review, and a bundled Codex skill are implemented. Broader agent evaluation remains.
 
 ## Development workflow
 
@@ -48,7 +48,7 @@ The browser prototype implements overview, ordered behavior sections, descriptio
 
 The [review model](review-model.md) separates deterministic source changes from proposed analysis. Validation rejects missing, duplicated, invented, and stale references. Tests cover source coordinates, additions/deletions at file boundaries, context isolation, counts, and feedback export. Browser checks cover rendering, old-side line selection, flags, feedback persistence, and clipboard export.
 
-Contiguous edit blocks are the first implemented unit. Splitting adjacent unrelated edits within one block remains an explicit limitation to address before general local reviews.
+Contiguous edit blocks are numbered for authoring. Whole-block references and block-local row selectors support adjacent semantic splits while preserving source coordinates. Non-text changes have explicit whole-change coverage.
 
 ## Local capture and browser review
 
@@ -58,13 +58,14 @@ Base resolution prefers recorded remote default metadata, then an unambiguous ma
 
 Tests use temporary Git repositories to exercise capture integrity, worktrees, merge bases, mixed changes, ambiguity, conflicts, and concurrency; HTTP tests check snapshot access and immutability. UI rendering tests cover empty and metadata-only reviews. Interactive browser verification of the real-snapshot workflow remains to be completed.
 
+## Skill and saved-analysis workflow
+
+`capture`, `inspect`, `validate`, and `open` form the local authoring interface. Captures include a checksum and numbered inventory. YAML analysis selects tool-generated blocks or row ranges; the validator derives internal IDs and flag ownership. Descriptions use Markdown with Mermaid fences. Malformed analysis leaves the complete diff available.
+
+The bundled Codex skill uses the existing agent session and its tools. It writes analysis against the saved capture and uses validation errors for repair. It does not launch another agent.
+
 ## Next implementation step
 
-Build the local vertical slice in this order:
+Evaluate the skill on larger real changes, comparing grouping quality, first-pass coverage, and repair effort. Verify interactive rendering and feedback for saved reviews, including Mermaid errors and split fragments. Exact move matching, rename presentation, richer split-fragment context, and handling checkout transformations remain follow-ups.
 
-1. **Implemented:** Capture a stable text snapshot from a temporary test repository. Resolve the comparison branch and merge base; combine committed, staged, unstaged, and non-ignored untracked changes without mutating the index or working tree. Detect concurrent edits and report unsupported file types explicitly.
-2. Extend coverage to adjacent semantic splits, renames, binary changes, and exact moves. Add deterministic file-role classification with visible unknowns.
-3. Establish the supported Codex invocation and generate schema-constrained analysis tied to the captured snapshot. Validate it before displaying sections; retain the full diff when generation fails.
-4. Capture is connected to the browser. Connect generated analysis, document the local command, and verify a complete feedback loop on a real change.
-
-The local scope remains fixed: all net changes since the branch's merge base, with no scope selector or committed-only mode. The Codex interface needs technical investigation before selecting an integration design.
+The local scope remains fixed: all net changes since the branch's merge base, with no scope selector or committed-only mode.

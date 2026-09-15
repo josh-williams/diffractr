@@ -28,15 +28,22 @@ async function start() {
     );
   }
   let snapshot = exampleSnapshot;
+  let inputAnalysis: unknown = exampleAnalysis;
+  let analysisErrors: string[] = [];
   if (token) {
-    const response = await fetch("/api/snapshot", {
+    const response = await fetch("/api/review", {
       headers: { Authorization: `Bearer ${token}` },
     });
     if (!response.ok)
       throw new Error(
         "Unable to load this snapshot. Restart the review command and open its URL.",
       );
-    snapshot = snapshotSchema.parse(await response.json());
+    const review = await response.json();
+    snapshot = snapshotSchema.parse(review.snapshot);
+    inputAnalysis = review.analysis;
+    analysisErrors = Array.isArray(review.errors)
+      ? review.errors.filter((e: unknown): e is string => typeof e === "string")
+      : [];
   }
   await preloadHighlighter({
     themes: ["pierre-dark"],
@@ -47,7 +54,8 @@ async function start() {
       <App
         key={snapshot.id}
         snapshot={snapshot}
-        inputAnalysis={token ? undefined : exampleAnalysis}
+        inputAnalysis={inputAnalysis}
+        analysisErrors={analysisErrors}
         example={!token}
       />
     </StrictMode>,

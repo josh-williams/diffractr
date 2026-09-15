@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Maximize2,
 } from "lucide-react";
+import Markdown from "./Markdown";
 import {
   unitDiff,
   lines,
@@ -27,6 +28,7 @@ interface Props {
   comments: Comment[];
   onComment: (anchor: Anchor) => void;
   onFullFile: (file: SourceFile) => void;
+  metadata?: boolean;
 }
 export default function DiffCard({
   file,
@@ -36,6 +38,7 @@ export default function DiffCard({
   comments,
   onComment,
   onFullFile,
+  metadata = true,
 }: Props) {
   const [collapsed, setCollapsed] = useState(file.role === "generated");
   const [selection, setSelection] = useState<SelectedLineRange | null>(null);
@@ -117,15 +120,27 @@ export default function DiffCard({
           </button>
         )}
       </header>
-      {file.oldMode !== undefined && file.oldMode !== file.newMode && (
-        <p className="border-b border-mist-800 px-3 py-1.5 text-xs text-mist-400">
-          {file.oldMode === null
-            ? "Added file"
-            : file.newMode === null
-              ? "Deleted file"
-              : `Mode ${file.oldMode} → ${file.newMode}`}
-        </p>
-      )}
+      {metadata &&
+        file.oldMode !== undefined &&
+        file.oldMode !== file.newMode && (
+          <p className="border-b border-mist-800 px-3 py-1.5 text-xs text-mist-400">
+            {file.oldMode === null
+              ? "Added file"
+              : file.newMode === null
+                ? "Deleted file"
+                : `Mode ${file.oldMode} → ${file.newMode}`}
+          </p>
+        )}
+      {flags
+        .filter((f) => !f.anchor)
+        .map((f) => (
+          <div
+            key={f.id}
+            className="m-2 rounded border border-mist-600 bg-mist-800 p-2"
+          >
+            <Markdown text={f.text} />
+          </div>
+        ))}
       {file.notice || units.length === 0 ? (
         <p className="px-3 py-2 text-xs text-mist-400">
           {file.notice ?? "No changed text lines"}
@@ -146,20 +161,24 @@ export default function DiffCard({
             const position = siblings.findIndex((u) => u.id === unit.id);
             const previous = siblings[position - 1];
             const next = siblings[position + 1];
-            const beforeAvailable = Math.min(
-              unit.oldStart -
-                (previous ? previous.oldStart + previous.oldCount : 0),
-              unit.newStart -
-                (previous ? previous.newStart + previous.newCount : 0),
-            );
-            const afterAvailable = Math.min(
-              (next?.oldStart ?? lines(file.before).length) -
-                unit.oldStart -
-                unit.oldCount,
-              (next?.newStart ?? lines(file.after).length) -
-                unit.newStart -
-                unit.newCount,
-            );
+            const beforeAvailable = unit.split
+              ? 0
+              : Math.min(
+                  unit.oldStart -
+                    (previous ? previous.oldStart + previous.oldCount : 0),
+                  unit.newStart -
+                    (previous ? previous.newStart + previous.newCount : 0),
+                );
+            const afterAvailable = unit.split
+              ? 0
+              : Math.min(
+                  (next?.oldStart ?? lines(file.before).length) -
+                    unit.oldStart -
+                    unit.oldCount,
+                  (next?.newStart ?? lines(file.after).length) -
+                    unit.newStart -
+                    unit.newCount,
+                );
             const contextButton = (
               side: "before" | "after",
               available: number,
@@ -184,10 +203,10 @@ export default function DiffCard({
             };
             const annotations: DiffLineAnnotation<Flag | Comment>[] = [
               ...flags
-                .filter((f) => visible(f.anchor, index))
+                .filter((f) => f.anchor && visible(f.anchor, index))
                 .map((f) => ({
-                  side: f.anchor.side,
-                  lineNumber: f.anchor.end,
+                  side: f.anchor!.side,
+                  lineNumber: f.anchor!.end,
                   metadata: f,
                 })),
               ...comments
@@ -212,16 +231,19 @@ export default function DiffCard({
                   }}
                   lineAnnotations={annotations}
                   renderAnnotation={({ metadata }) =>
-                    "anchor" in metadata ? (
+                    "text" in metadata ? (
                       <div
                         className="m-2 flex gap-2 rounded border border-mist-600 bg-mist-800 p-2 font-sans text-sm leading-5 text-mist-200 [&>svg]:mt-0.5 [&>svg]:shrink-0 [&_strong]:font-medium [&_p]:mt-1 [&_p]:text-mist-300 [&_button]:mt-1 [&_button]:text-xs [&_button]:underline [&_button]:underline-offset-2"
                         id={`flag-${metadata.id}`}
                       >
                         <FlagIcon size={15} />
                         <div>
-                          <strong>{metadata.title}</strong>
-                          <p>{metadata.body}</p>
-                          <button onClick={() => onComment(metadata.anchor)}>
+                          <Markdown text={metadata.text} />
+                          <button
+                            onClick={() =>
+                              metadata.anchor && onComment(metadata.anchor)
+                            }
+                          >
                             Leave feedback here
                           </button>
                         </div>

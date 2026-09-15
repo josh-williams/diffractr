@@ -1,43 +1,44 @@
 # Review model
 
-The prototype separates source facts from explanatory analysis. The definitions and runtime analysis schema live in `src/core/review.ts`; `src/examples/invitations.ts` supplies the bundled example.
+Source facts and authored analysis are separate. Source types and diff projection live in `src/core/review.ts`; block inventory, row selection, and analysis validation live in `src/core/analysis.ts`. The [authoring reference](../skills/diffraction/references/format.md) defines the YAML contract. The invitations example uses that same contract.
 
 ## Artifact boundaries
 
-- **Snapshot:** repository, branch, base, a snapshot identity, and files containing before/after text. A null side means a file was added or deleted. File roles are independent of semantic sections.
-- **Change unit:** a contiguous edit block computed from a zero-context diff. It holds original old/new offsets and changed-line counts. Unchanged lines separate units even when Git would place them in one context hunk.
-- **Analysis:** versioned snapshot reference, overview, ordered sections, descriptions, diagrams, unit assignments, and anchored flags. It contains references to source changes, never replacement source text.
-- **Comment:** snapshot identity, file, side, inclusive line range, and the reviewer's text.
+- **Capture:** immutable before/after file contents, modes, repository/comparison metadata, snapshot identity, and a checksum in `capture.json`. A null side means addition or deletion. Roles are independent of group ownership.
+- **Block inventory:** deterministic snapshot-local references `B1`, `B2`, etc. Text blocks originate from contiguous edit regions with up to three context lines bounded by neighboring changes. Rows have explicit numbers, operations, content, and original coordinates. Non-text, mode-only, and empty-file changes have whole-change blocks without rows.
+- **Authored analysis:** snapshot reference, overview, ordered groups with Markdown descriptions and selections, and text flags with selections. It never supplies source text or invents group/flag IDs.
+- **Resolved review:** generated navigation IDs, group ownership, source-coordinate projections, file membership, and flag placement, derived from validated analysis.
+- **Feedback:** snapshot identity, file, side, inclusive source range, and reviewer text, persisted in browser storage and exported as Markdown.
 
-The application owns the snapshot, units, counts, source rendering, and feedback. Analysis proposes the reading order and explanations. The prototype supplies analysis as fixed data; a later Codex adapter will produce the same validated structure.
+The Codex skill runs within the user's existing agent session. The agent can inspect any relevant context using its normal tools; selections always refer to the saved capture.
 
 ## Coordinates and coverage
 
-Unit offsets are zero-based, with separate counts on each side. Flag and comment anchors are one-based inclusive ranges on either the old (`deletions`) or new (`additions`) text. Unit IDs are local to one snapshot, not stable progress identifiers.
+`rows: "5-28, 32"` refers to displayed block rows, not source lines. Omitting it selects the whole block. Context may occur inside a selected range but does not count toward ownership. Each changed row and each whole-change block must belong to exactly one group. Invalid syntax, unknown references, out-of-bounds ranges, duplicate ownership, missing coverage, context-only selections, and stale snapshot references reject analysis.
 
-Validation requires every unit to belong to exactly one section. Unknown units, duplicate assignments, missing coverage, duplicate section/flag identities, and mismatched snapshot IDs reject the whole analysis. A flag must reference changed lines owned by its section. Reviewer comments can also target unchanged context.
+Deleted and added rows may be selected together even when nonadjacent in the displayed block. Selections within each group are combined, then converted to contiguous old/new runs for diff rendering. Full blocks preserve expandable context bounded by the original source blocks. Split fragments currently render with zero context so another group's edits cannot leak into the projection; complete-file view remains available. Groups describe changes, not independently applicable commits.
 
-A section projects each assigned unit into a real patch with original line numbers. Context expansion stops at neighboring changes so another section's edits cannot leak into the section. Each omitted-context separator is a button that reveals the unchanged lines on that side. The complete file diff remains available with unrestricted context. File roles determine the size breakdown; displaying context or the same file in multiple sections does not increase the counts.
+Flags use the same selectors. All selected changed rows must have one owner, which determines the flag's group. Text flags render at the end of the last selected new-side run, or old-side run for deletions. Whole-change flags render in the file card. Reviewer comments can target unchanged context too.
 
-If analysis validation fails, the interface offers all files without semantic organization. Feedback export checks snapshot identity and anchor bounds, then quotes the selected source from the appropriate side.
+Global counts derive from source changes, not repeated file appearances or displayed context. Group file counts include metadata-only files. Metadata changes have no text-line count.
 
-## Prototype choices and limitations
+## Local transport and integrity
 
-- React and Vite provide a small local browser app. Pierre's diff components render source and handle line selection. The syntax highlighter initializes before the first diff mounts.
-- Zod validates analysis at the boundary. Text is rendered as text; descriptions and diagrams cannot inject HTML or executable diagram code. Diagrams currently support a short sequence of labeled steps, not an arbitrary graph.
-- The synthetic example includes implementation, tests, generated output, and schema changes. It is review data, not an executable invitation backend. Its roles and explanations are manually specified.
-- The first unit is an indivisible contiguous edit block. Adjacent unrelated changes within that block cannot yet be assigned to different sections. Further splitting must preserve non-overlapping old/new ranges and exact coverage.
-- Snapshot identity is fixed for the example. Local capture derives identity from repository location, source fingerprints, modes, and comparison metadata. Two matching consecutive reads are required, with up to three attempts. This detects observed concurrent edits; it is not a filesystem-atomic snapshot.
-- Local Git capture and basic file-role classification are implemented. Mode-only and empty-file changes are retained outside text change units. Unsupported content receives a notice and contributes no text line counts. Renames appear as delete/add; exact move/copy detection and Codex execution remain unimplemented.
-- Draft feedback is stored in browser local storage under the snapshot identity. Clipboard and Markdown download are the only export paths. Cross-revision migration and progress tracking remain later work.
-- The prototype bundles a general-purpose syntax highlighter. Its production build reports a large-chunk warning; worker loading and bundle optimization remain performance work for larger reviews.
+`scripts/capture.mjs` captures the merge-base-to-working-tree state. Two matching consecutive reads are required, with up to three attempts. This detects observed concurrent edits; it is not a filesystem-atomic snapshot. Source identity incorporates repository location, fingerprints, modes, and comparison metadata.
 
-## Local transport
+`scripts/workflow.ts` saves and reloads capture artifacts. The version-2 capture envelope includes a SHA-256 checksum over canonical snapshot JSON, including its authoritative block inventory. Saved block IDs, numbered rows, source mappings, and change units drive inspection, validation, and browser projections without rerunning block generation. Version-1 captures must be recaptured; the authored analysis format remains version 1. Reopening verifies the checksum before interpreting block references. It detects accidental modification, not authenticity against an adversary who can replace the source and checksum together. Captured artifacts remain tied to their original snapshot when live files change.
 
-`scripts/capture.mjs` produces snapshots from the merge base and current filesystem. Regular UTF-8 files are compared as raw bytes/text without running Git content filters or text conversion. This can expose checkout transformations such as CRLF normalization or LFS pointers as differences. Sparse checkouts are not yet supported: missing tracked paths are treated as deletions. File paths must be valid UTF-8.
+The server holds one review in memory, serves only built UI assets, and requires a session token and same-origin host for source/analysis endpoints. No repository filesystem paths are exposed as HTTP routes. Invalid analysis opens the full diff with errors. Invalid captures are rejected. The browser validates analysis again and regenerates projections.
 
-`scripts/review.mjs` holds one immutable snapshot in memory and serves built application assets. The snapshot endpoint requires a random session token and same-origin host; neither repository paths nor arbitrary files are exposed as routes. The browser validates snapshot structure before rendering. Opening a local review without its token shows an error rather than example data.
+Markdown is rendered without raw HTML. Mermaid is lazy-loaded with strict security settings. Diagram errors remain local to the diagram and expose its source for diagnosis. No live agent execution occurs in the viewer.
+
+## Remaining limitations
+
+- Regular UTF-8 files are compared as raw content without Git content filters. Checkout transformations such as CRLF normalization or LFS pointers may appear as differences. Sparse checkouts are not supported; missing tracked paths are treated as deletions. Paths must be valid UTF-8.
+- Binary/non-UTF-8 content, files over 2 MiB, symlinks, special files, and submodules receive notices. Renames appear as delete/add; exact move/copy detection remains future work.
+- A changed line has one owner even when multiple behaviors affect it. Character-level splitting, cross-revision feedback migration, and progress tracking are deferred.
+- General-purpose syntax highlighting and Mermaid produce large build chunks. Larger-review performance needs further evaluation.
 
 ## Validation
 
-`npm test` exercises analysis integrity, projection coordinates, boundary insertions/deletions, missing final newlines, context isolation, size counts, and feedback export. `npm run build` checks TypeScript and generates the production assets. Browser verification exercises the actual renderer and feedback interactions, which unit tests cannot establish.
+Tests exercise mixed Git states, worktrees, snapshots, checksum failures, YAML parsing, compact selectors, full coverage, adjacent/disjoint projections, metadata ownership, flag derivation, and feedback export. CLI tests run the real entry point against saved captures. UI rendering tests cover empty and metadata-only reviews. The skill's helper is exercised and its frontmatter checked separately. Interactive browser verification remains distinct from these automated checks.

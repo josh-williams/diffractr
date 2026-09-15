@@ -14,6 +14,7 @@ export interface SourceFile {
   newMode?: string | null;
 }
 export interface Snapshot {
+  inventory?: import("./analysis").Block[];
   id: string;
   repository: string;
   branch: string;
@@ -30,6 +31,7 @@ export interface ChangeUnit {
   oldCount: number;
   newStart: number;
   newCount: number;
+  split?: boolean;
 }
 export type Side = "additions" | "deletions";
 export interface Anchor {
@@ -51,39 +53,27 @@ export const anchorSchema = z
     end: z.number().int().positive(),
   })
   .refine((a) => a.end >= a.start, "Range ends before it starts");
-const flowSchema = z.object({
-  caption: z.string(),
-  steps: z.array(z.string().min(1)).min(2).max(8),
-});
-export const analysisSchema = z.object({
-  version: z.literal(1),
-  snapshotId: z.string().min(1),
-  title: z.string().min(1),
-  summary: z.string().min(1),
-  sections: z
-    .array(
-      z.object({
-        id: z.string().min(1),
-        title: z.string().min(1),
-        description: z.string().min(1),
-        unitIds: z.array(z.string()).min(1),
-        diagrams: z.array(flowSchema).max(2).default([]),
-      }),
-    )
-    .min(1),
-  flags: z.array(
-    z.object({
-      id: z.string().min(1),
-      sectionId: z.string().min(1),
-      title: z.string().min(1),
-      body: z.string().min(1),
-      anchor: anchorSchema,
-    }),
-  ),
-});
-export type Analysis = z.infer<typeof analysisSchema>;
-export type Section = Analysis["sections"][number];
-export type Flag = Analysis["flags"][number];
+export interface Flag {
+  id: string;
+  sectionId: string;
+  text: string;
+  fileId: string;
+  anchor?: Anchor;
+}
+export interface Section {
+  id: string;
+  title: string;
+  description: string;
+  unitIds: string[];
+  fileIds: string[];
+  metadataFileIds: string[];
+}
+export interface Analysis {
+  title: string;
+  summary: string;
+  sections: Section[];
+  flags: Flag[];
+}
 export const roles: FileRole[] = ["production", "tests", "generated", "other"];
 export function fileDiff(file: SourceFile): FileDiffMetadata {
   return parseDiffFromFile(
@@ -95,6 +85,10 @@ export function fileDiff(file: SourceFile): FileDiffMetadata {
 // Units are contiguous edit blocks, independent of Git's context-based hunks.
 // IDs are snapshot-local. They are never reused to infer review progress.
 export function indexChanges(snapshot: Snapshot): ChangeUnit[] {
+  if (snapshot.inventory)
+    return snapshot.inventory.flatMap((block) =>
+      block.unit ? [block.unit] : [],
+    );
   const ids = new Set<string>();
   return snapshot.files.flatMap((file) => {
     if (ids.has(file.id)) throw new Error(`Duplicate source file: ${file.id}`);
@@ -119,70 +113,6 @@ export function containsLine(
   const count = side === "additions" ? unit.newCount : unit.oldCount;
   return line > start && line <= start + count;
 }
-export function validateAnalysis(
-  snapshot: Snapshot,
-  input: unknown,
-): { analysis: Analysis | null; errors: string[] } {
-  const result = analysisSchema.safeParse(input);
-  if (!result.success)
-    return {
-      analysis: null,
-      errors: result.error.issues.map(
-        (i) => `${i.path.join(".")}: ${i.message}`,
-      ),
-    };
-  const analysis = result.data;
-  const errors: string[] = [];
-  if (analysis.snapshotId !== snapshot.id)
-    errors.push("Analysis belongs to a different snapshot.");
-  const units = indexChanges(snapshot);
-  const unitMap = new Map(units.map((u) => [u.id, u]));
-  const assigned = new Set<string>();
-  const sectionIds = new Set<string>();
-  for (const section of analysis.sections) {
-    if (sectionIds.has(section.id))
-      errors.push(`Duplicate section: ${section.id}`);
-    sectionIds.add(section.id);
-    for (const id of section.unitIds) {
-      if (!unitMap.has(id)) errors.push(`Unknown change: ${id}`);
-      if (assigned.has(id))
-        errors.push(`Change assigned more than once: ${id}`);
-      assigned.add(id);
-    }
-  }
-  for (const unit of units)
-    if (!assigned.has(unit.id)) errors.push(`Unassigned change: ${unit.id}`);
-  const flagIds = new Set<string>();
-  for (const flag of analysis.flags) {
-    if (flagIds.has(flag.id)) errors.push(`Duplicate flag: ${flag.id}`);
-    flagIds.add(flag.id);
-    const section = analysis.sections.find((s) => s.id === flag.sectionId);
-    const owned =
-      section?.unitIds
-        .map((id) => unitMap.get(id))
-        .filter((u): u is ChangeUnit => !!u) ?? [];
-    const a = flag.anchor;
-    const file = snapshot.files.find((f) => f.id === a.fileId);
-    const count = file
-      ? lines(a.side === "additions" ? file.after : file.before).length
-      : 0;
-    if (
-      !section ||
-      a.end > count ||
-      !Array.from(
-        { length: Math.min(a.end - a.start + 1, count + 1) },
-        (_, i) => a.start + i,
-      ).every((line) =>
-        owned.some(
-          (u) => u.fileId === a.fileId && containsLine(u, a.side, line),
-        ),
-      )
-    ) {
-      errors.push(`Flag is outside its section's changed lines: ${flag.id}`);
-    }
-  }
-  return { analysis: errors.length ? null : analysis, errors };
-}
 export function lines(content: string | null): string[] {
   if (!content) return [];
   const result = content.match(/[^\n]*\n|[^\n]+$/g);
@@ -196,6 +126,7 @@ export function unitDiff(
   allUnits: ChangeUnit[],
   context: number | { before: number; after: number } = 3,
 ): FileDiffMetadata {
+  if (unit.split) context = 0;
   const before = lines(file.before),
     after = lines(file.after);
   const siblings = allUnits.filter((u) => u.fileId === file.id);
