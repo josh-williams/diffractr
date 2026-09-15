@@ -8,20 +8,18 @@ The initial workflow focuses on local self-review of coding-agent output, using 
 
 Requires Node.js 22.12 or newer and Git. The standalone package includes the CLI and built viewer; users do not need a source checkout, build tools, or runtime npm dependencies.
 
-The npm package is named `diffractr`, but is not published yet. Until publication, install a built tarball:
+Install the Codex skill directly from npm:
 
 ```sh
-npm install -g /path/to/diffractr-0.1.0.tgz
-diffractr install-skill
+npx diffractr install-skill
 ```
 
-Alternatively, run directly from a tarball without a global install:
+For direct CLI use, install globally:
 
 ```sh
-npx --package=/path/to/diffractr-0.1.0.tgz diffractr install-skill
+npm install -g diffractr
+diffractr --help
 ```
-
-After npm publication, the equivalent command will be `npx diffractr install-skill`.
 
 ### Codex skill
 
