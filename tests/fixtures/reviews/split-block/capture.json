@@ -1,0 +1,75 @@
+{
+  "version": 2,
+  "snapshot": {
+    "id": "fixture-split-v1",
+    "repository": "example/settings",
+    "branch": "settings",
+    "base": "main",
+    "files": [
+      {
+        "id": "settings",
+        "path": "src/settings.ts",
+        "before": "export const settings = {\n  timeout: 1000,\n  retries: 1,\n};\n",
+        "after": "export const settings = {\n  timeout: 5000,\n  retries: 3,\n};\n",
+        "role": "production"
+      }
+    ],
+    "inventory": [
+      {
+        "id": "B1",
+        "fileId": "settings",
+        "path": "src/settings.ts",
+        "kind": "text",
+        "rows": [
+          {
+            "n": 1,
+            "op": " ",
+            "text": "export const settings = {\n",
+            "oldLine": 1,
+            "newLine": 1
+          },
+          {
+            "n": 2,
+            "op": "-",
+            "text": "  timeout: 1000,\n",
+            "oldLine": 2
+          },
+          {
+            "n": 3,
+            "op": "-",
+            "text": "  retries: 1,\n",
+            "oldLine": 3
+          },
+          {
+            "n": 4,
+            "op": "+",
+            "text": "  timeout: 5000,\n",
+            "newLine": 2
+          },
+          {
+            "n": 5,
+            "op": "+",
+            "text": "  retries: 3,\n",
+            "newLine": 3
+          },
+          {
+            "n": 6,
+            "op": " ",
+            "text": "};\n",
+            "oldLine": 4,
+            "newLine": 4
+          }
+        ],
+        "unit": {
+          "id": "settings:2:2",
+          "fileId": "settings",
+          "oldStart": 1,
+          "oldCount": 2,
+          "newStart": 1,
+          "newCount": 2
+        }
+      }
+    ]
+  },
+  "digest": "ac4ea50c2b2f8def1498e0e0748bf1710d79bc0b64574f73537ea9ba2934e330"
+}

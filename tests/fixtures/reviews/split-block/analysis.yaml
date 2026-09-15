@@ -1,0 +1,22 @@
+version: 1
+snapshotId: fixture-split-v1
+title: Adjust request resilience
+description: Requests wait longer and retry more often.
+groups:
+  - title: Wait longer for a response
+    description: Increase the timeout from one second to five seconds.
+    changes:
+      - block: B1
+        rows: 2, 4
+  - title: Retry transient failures
+    description: Allow three retries before returning the failure.
+    changes:
+      - block: B1
+        rows: 3, 5
+flags:
+  - text:
+      Three retries can repeat a write operation. Check that callers retry only
+      safe or idempotent requests.
+    anchor:
+      block: B1
+      rows: "5"

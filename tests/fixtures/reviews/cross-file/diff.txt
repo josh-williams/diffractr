@@ -1,0 +1,103 @@
+Snapshot: example-invitations-v1
+acme/workspace: feature/team-invitations ← main · example baseline
+Rows are block-local, inclusive; context is not owned.
+
+B1 "api/invitations.yaml"
+1         type: string
+2       email:
+3         type: string
+4 +     expiresAt:
+5 +       type: string
+6 +       format: date-time
+
+B2 "generated/api/invitation.ts"
+1     id: string;
+2     email: string;
+3     createdAt: string;
+4 +   expiresAt: string;
+5   };
+
+B3 "src/invitations/model.ts"
+1     email: string;
+2     teamId: string;
+3     createdAt: Date;
+4 +   expiresAt: Date;
+5   }
+
+B4 "src/invitations/service.ts"
+1   import { mailer } from '../mailer';
+2   
+3   export async function createInvitation(email: string, teamId: string) {
+4 -   const invitation = await db.invitations.create({ email, teamId });
+5 +   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+6 +   const invitation = await db.invitations.create({ email, teamId, expiresAt });
+7     await mailer.sendInvitation(invitation);
+8     return invitation;
+9   }
+
+B5 "src/invitations/service.ts"
+1   export async function acceptInvitation(id: string, userId: string) {
+2     const invitation = await db.invitations.findById(id);
+3     if (!invitation) throw new Error('Invitation not found');
+4 +   if (invitation.expiresAt.getTime() <= Date.now()) {
+5 +     throw new Error('Invitation expired');
+6 +   }
+7     await db.memberships.create({ teamId: invitation.teamId, userId });
+8     await db.invitations.delete(id);
+9   }
+
+B6 "src/invitations/service.ts"
+1   export async function resendInvitation(id: string) {
+2     const invitation = await db.invitations.findById(id);
+3     if (!invitation) throw new Error('Invitation not found');
+4 -   await mailer.sendInvitation(invitation);
+5 +   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+6 +   const renewed = await db.invitations.update(id, { expiresAt });
+7 +   await mailer.sendInvitation(renewed);
+8   }
+
+B7 "tests/invitations/expiry.test.ts"
+1 + import { expect, it, vi } from 'vitest';
+2 + import { createInvitation, acceptInvitation } from '../../src/invitations/service';
+3 + import { seedInvitation, membershipCount } from '../fixtures';
+4 + 
+5 + it('creates an invitation valid for seven days', async () => {
+6 +   vi.useFakeTimers();
+7 +   vi.setSystemTime(new Date('2026-08-01T12:00:00Z'));
+8 +   try {
+9 +     const invitation = await createInvitation('member@example.com', 'team-1');
+10 +     expect(invitation.expiresAt.toISOString()).toBe('2026-08-08T12:00:00.000Z');
+11 +   } finally {
+12 +     vi.useRealTimers();
+13 +   }
+14 + });
+15 + 
+16 + it('rejects acceptance at the expiry boundary', async () => {
+17 +   vi.useFakeTimers();
+18 +   vi.setSystemTime(new Date('2026-08-08T12:00:00Z'));
+19 +   try {
+20 +     await seedInvitation({ id: 'invite-1', expiresAt: new Date() });
+21 +     await expect(acceptInvitation('invite-1', 'user-1')).rejects.toThrow('Invitation expired');
+22 +     expect(await membershipCount('user-1')).toBe(0);
+23 +   } finally {
+24 +     vi.useRealTimers();
+25 +   }
+26 + });
+
+B8 "tests/invitations/resend.test.ts"
+1 + import { expect, it, vi } from 'vitest';
+2 + import { resendInvitation } from '../../src/invitations/service';
+3 + import { seedInvitation, findInvitation } from '../fixtures';
+4 + 
+5 + it('renews the invitation when it is resent', async () => {
+6 +   vi.useFakeTimers();
+7 +   vi.setSystemTime(new Date('2026-08-08T12:00:00Z'));
+8 +   try {
+9 +     await seedInvitation({ id: 'invite-1', expiresAt: new Date() });
+10 +     await resendInvitation('invite-1');
+11 +     const invitation = await findInvitation('invite-1');
+12 +     expect(invitation.expiresAt.toISOString()).toBe('2026-08-15T12:00:00.000Z');
+13 +   } finally {
+14 +     vi.useRealTimers();
+15 +   }
+16 + });

@@ -53,7 +53,7 @@ npm pack
 
 The prepack step builds the viewer and compiled CLI. The resulting `diffractr-0.1.0.tgz` contains built assets, the skill, documentation, and licenses. It excludes application source, tests, and development dependencies. `npm run test:package` builds and tests the tarball through an offline installation in a temporary Git repository, including the independently installed skill and authenticated HTTP viewer.
 
-Publishing is a separate step. See [Releasing](docs/releasing.md) for initial npm setup and the version/tag release workflow.
+Publishing is a separate step. See [Releasing](docs/releasing.md) for the ongoing version/tag release workflow.
 
 ## Review a local repository without analysis
 
@@ -102,6 +102,19 @@ Use the sun/moon button in the top bar to switch between light and dark themes. 
 Draft comments persist in this browser for the example snapshot. They are not sent anywhere. Use the feedback panel to delete them.
 
 ## Development
+
+Use Node 24 for development and builds (`nvm use` reads `.nvmrc`), then run `npm ci`. The packaged CLI still supports Node 22.12.0 and newer.
+
+```sh
+npm run check    # Lint, formatting, tests, and type checking
+npm run test:package # Full build and installed-package smoke test
+```
+
+CI runs checks on pushes to main and pull requests. It builds one tarball on Node 24 and tests that artifact on Node 22.12.0 and Node 24, including the independently installed skill. These checks do not publish anything.
+
+Saved [review fixtures](tests/fixtures/reviews/README.md) provide repeatable format and grouping examples. They are checked by the test suite and can be opened locally for manual review.
+
+Individual commands:
 
 ```sh
 npm test          # Coverage validation, diff projection, and feedback anchors

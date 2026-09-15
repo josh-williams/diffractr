@@ -1,0 +1,52 @@
+version: 1
+snapshotId: example-invitations-v1
+title: Give team invitations an expiry
+description: Invitations now have a seven-day lifetime. Expired links can no
+  longer create memberships, and resending an invitation renews its validity.
+  The API exposes the expiry date to clients.
+groups:
+  - title: Expire invitations after seven days
+    description: >-
+      New invitations receive an expiry timestamp seven days from creation.
+      Acceptance checks that timestamp before creating a membership, so expired
+      invitations leave membership unchanged. The API schema and generated
+      response type expose the new field.
+
+
+      Tests cover the seven-day lifetime and rejection at the exact expiry
+      boundary.
+
+
+      ```mermaid
+
+      flowchart LR
+        Find[Find invitation] --> Check[Check expiry]
+        Check --> Reject[Reject expired invitation]
+        Check --> Create[Create membership]
+      ```
+    changes:
+      - block: B1
+      - block: B2
+      - block: B3
+      - block: B4
+      - block: B5
+      - block: B7
+  - title: Renew invitations when resent
+    description:
+      Resending an invitation gives it a fresh seven-day lifetime before
+      sending the email. The existing invitation is updated in place, keeping
+      the same identifier. A test checks that resending extends its expiry.
+    changes:
+      - block: B6
+      - block: B8
+flags:
+  - text:
+      An invitation expires at the exact cutoff timestamp. Check whether this
+      matches the intended product behavior.
+    anchor:
+      block: B5
+  - text:
+      Renewal keeps the same invitation identifier. Anyone holding the previous
+      link can use it during the renewed window.
+    anchor:
+      block: B6

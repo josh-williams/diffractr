@@ -1,0 +1,64 @@
+{
+  "version": 2,
+  "snapshot": {
+    "id": "fixture-metadata-v1",
+    "repository": "example/assets",
+    "branch": "assets",
+    "base": "main",
+    "files": [
+      {
+        "id": "script",
+        "path": "scripts/start.sh",
+        "before": "echo ready\n",
+        "after": "echo ready\n",
+        "role": "production",
+        "oldMode": "100644",
+        "newMode": "100755"
+      },
+      {
+        "id": "image",
+        "path": "assets/icon.png",
+        "before": null,
+        "after": null,
+        "role": "other",
+        "notice": "Binary content"
+      },
+      {
+        "id": "empty",
+        "path": "cache/.gitkeep",
+        "before": null,
+        "after": "",
+        "role": "other",
+        "oldMode": null,
+        "newMode": "100644"
+      }
+    ],
+    "inventory": [
+      {
+        "id": "B1",
+        "fileId": "image",
+        "path": "assets/icon.png",
+        "kind": "metadata",
+        "rows": [],
+        "notice": "Binary content"
+      },
+      {
+        "id": "B2",
+        "fileId": "empty",
+        "path": "cache/.gitkeep",
+        "kind": "metadata",
+        "rows": [],
+        "notice": "Empty file added"
+      },
+      {
+        "id": "B3",
+        "fileId": "script",
+        "path": "scripts/start.sh",
+        "kind": "metadata",
+        "rows": [],
+        "notice": "Mode 100644 → 100755"
+      }
+    ]
+  },
+  "digest": "b450b79ff677e0d09e422e0b39da3f0f27739d98d3eb79251c45135389d13a4f"
+}

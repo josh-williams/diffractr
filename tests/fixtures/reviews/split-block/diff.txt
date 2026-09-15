@@ -1,0 +1,11 @@
+Snapshot: fixture-split-v1
+example/settings: settings ← main
+Rows are block-local, inclusive; context is not owned.
+
+B1 "src/settings.ts"
+1   export const settings = {
+2 -   timeout: 1000,
+3 -   retries: 1,
+4 +   timeout: 5000,
+5 +   retries: 3,
+6   };

@@ -1,6 +1,6 @@
 # diffractr: implementation plan
 
-Status: working plan, updated 2026-09-13. Build a dedicated application for local self-review, with Codex as the only V1 agent integration and MIT licensing. Milestone 1 is implemented as a runnable example prototype. Local capture, block-based analysis validation, organized browser review, and a bundled Codex skill are implemented. Broader agent evaluation remains.
+Status: working plan, updated 2026-09-15. Build a dedicated application for local self-review, with Codex as the only V1 agent integration and MIT licensing. Milestone 1 is implemented as a runnable example prototype. Local capture, block-based analysis validation, organized browser review, and a bundled Codex skill are implemented. Broader agent evaluation remains.
 
 ## Development workflow
 
@@ -12,7 +12,7 @@ Each implementation task should receive: the problem, relevant brief sections, s
 
 Plan the next milestone in detail and keep later ones coarse. Record consequential technical decisions with their rationale. Add GitHub issues when execution or outside collaboration makes them useful; avoid maintaining duplicate task status in several places.
 
-Commit and push only when explicitly requested. Keep ongoing iterations local until then. Maintain installation instructions, usage documentation, and examples alongside the features they describe. Include the MIT license from the start. There is no separate open-source release milestone; a contributor guide and PR checks are out of scope for now.
+Maintain installation instructions, usage documentation, and examples alongside the features they describe. Include the MIT license from the start. There is no separate open-source release milestone; a separate contributor guide remains deferred. Push and PR checks now validate source and packaged installation.
 
 ## Milestones
 
@@ -31,16 +31,16 @@ Use the [section model and layout](product-brief.md#confirmed-section-model-and-
 
 Design progress tracking and revision reconciliation after the core review model is established. GitHub PR review and cloud hosting are future milestones after the local workflow. Cloud deployment details and automatic review triggers will be designed when that milestone approaches. Additional agent integrations, live Q&A, and manual regrouping remain deferred. Progress tracking's place in the sequence will be decided later.
 
-## Architectural questions to prove early
+## Established architectural decisions
 
-- Can the renderer show disjoint ranges while preserving original line numbers and comment locations?
-- What unit allows semantic splitting without losing or duplicating changed lines? Do not assume raw Git hunks are sufficient.
-- How is the comparison branch identified automatically before computing the merge base, and how are missing or ambiguous base references reported?
-- How can we capture a coherent working-tree snapshot while another process edits it? Detect concurrent changes and retry or explicitly label the captured state.
-- How is a model result tied to the exact snapshot it analyzed? Stale results must not overwrite newer analysis.
-- Can Codex produce the defined review artifact through a supported interface using the user's existing access, with visible usage and useful failure handling?
+- Split fragments preserve original line coordinates and comment locations. Expandable surrounding context remains limited; full-file view provides context.
+- Persisted numbered blocks and inclusive block-local row selectors support semantic splitting. Validation requires exactly one owner per changed row.
+- Base selection uses recorded remote default metadata, then unambiguous main/master references; ambiguity requires an explicit base.
+- Capture compares consecutive reads and retries detected edits. This detects observed changes but is not an atomic filesystem snapshot.
+- Analysis names the snapshot identity. Saved captures contain a checksum and authoritative inventory; stale references fail validation.
+- A self-contained Codex skill uses the existing agent session and the CLI to author, validate, and open analysis. Invalid analysis leaves the full diff available.
 
-Proposed boundary: ordinary code owns captured diffs, references, coverage, counts, and feedback; Codex proposes organization, explanations, and flags. Define a review artifact between these layers. Keep revision tracking outside the initial model-design work except for identifying the captured input each artifact describes.
+Architectural boundary: ordinary code owns captured diffs, references, coverage, counts, and feedback; Codex proposes organization, explanations, and flags. Define a review artifact between these layers. Keep revision tracking outside the initial model-design work except for identifying the captured input each artifact describes.
 
 ## Milestone 1 implementation
 
@@ -56,7 +56,7 @@ The local command captures merge-base-to-working-tree changes, including non-ign
 
 Base resolution prefers recorded remote default metadata, then an unambiguous main/master reference; ambiguous cases require `--base`. No automatic fetch occurs. Binary/non-UTF-8 content, files over 2 MiB, symlinks, special files, and submodules receive visible notices. Empty files and mode changes remain visible; renames appear as delete/add. Basic file-role heuristics are implemented.
 
-Tests use temporary Git repositories to exercise capture integrity, worktrees, merge bases, mixed changes, ambiguity, conflicts, and concurrency; HTTP tests check snapshot access and immutability. UI rendering tests cover empty and metadata-only reviews. Interactive browser verification of the real-snapshot workflow remains to be completed.
+Tests use temporary Git repositories to exercise capture integrity, worktrees, merge bases, mixed changes, ambiguity, conflicts, and concurrency; HTTP tests check snapshot access and immutability. UI rendering tests cover empty and metadata-only reviews. Interactive behavior has been checked manually during development; automated browser regression coverage remains deferred.
 
 ## Skill and saved-analysis workflow
 
@@ -72,4 +72,10 @@ The local scope remains fixed: all net changes since the branch's merge base, wi
 
 ## Standalone CLI and installation
 
-The `diffractr` tarball bundles a compiled Node CLI and prebuilt browser viewer, with no runtime npm dependencies. `install-skill` installs a self-contained Codex skill with a copied runtime, independently of the source checkout or npx cache. `npm pack` builds the distribution; `npm run test:package` verifies an offline installation, capture/inspect/validate/open, and viewer assets. The package is prepared locally and remains unpublished.
+The `diffractr` tarball bundles a compiled Node CLI and prebuilt browser viewer, with no runtime npm dependencies. `install-skill` installs a self-contained Codex skill with a copied runtime, independently of the source checkout or npx cache. `npm pack` builds the distribution; `npm run test:package` verifies an offline installation, capture/inspect/validate/open, and viewer assets. The package is published on npm. Stable GitHub releases trigger trusted publishing after validation; see [Releasing](releasing.md).
+
+## Development checks and regression examples
+
+`npm run check` runs lint, formatting checks, tests, and type checking. `npm run test:package` builds and tests an installed distribution. CI runs on main pushes and PRs, building on Node 24 and smoke-testing the same artifact on Node 22.12.0 and Node 24.
+
+Saved capture/analysis fixtures cover cross-file behavior, split blocks, and metadata-only changes. Tests reopen them and verify coverage and projection; they also support manual skill evaluation. Broader grouping-quality evaluation and interactive checks remain future work, rather than completed automated coverage.

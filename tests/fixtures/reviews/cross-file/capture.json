@@ -1,0 +1,715 @@
+{
+  "version": 2,
+  "snapshot": {
+    "id": "example-invitations-v1",
+    "repository": "acme/workspace",
+    "branch": "feature/team-invitations",
+    "base": "main · example baseline",
+    "files": [
+      {
+        "id": "model",
+        "path": "src/invitations/model.ts",
+        "before": "export interface Invitation {\n  id: string;\n  email: string;\n  teamId: string;\n  createdAt: Date;\n}\n",
+        "after": "export interface Invitation {\n  id: string;\n  email: string;\n  teamId: string;\n  createdAt: Date;\n  expiresAt: Date;\n}\n",
+        "role": "production"
+      },
+      {
+        "id": "service",
+        "path": "src/invitations/service.ts",
+        "before": "import { db } from '../db';\nimport { mailer } from '../mailer';\n\nexport async function createInvitation(email: string, teamId: string) {\n  const invitation = await db.invitations.create({ email, teamId });\n  await mailer.sendInvitation(invitation);\n  return invitation;\n}\n\nexport async function acceptInvitation(id: string, userId: string) {\n  const invitation = await db.invitations.findById(id);\n  if (!invitation) throw new Error('Invitation not found');\n  await db.memberships.create({ teamId: invitation.teamId, userId });\n  await db.invitations.delete(id);\n}\n\nexport async function resendInvitation(id: string) {\n  const invitation = await db.invitations.findById(id);\n  if (!invitation) throw new Error('Invitation not found');\n  await mailer.sendInvitation(invitation);\n}\n",
+        "after": "import { db } from '../db';\nimport { mailer } from '../mailer';\n\nexport async function createInvitation(email: string, teamId: string) {\n  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);\n  const invitation = await db.invitations.create({ email, teamId, expiresAt });\n  await mailer.sendInvitation(invitation);\n  return invitation;\n}\n\nexport async function acceptInvitation(id: string, userId: string) {\n  const invitation = await db.invitations.findById(id);\n  if (!invitation) throw new Error('Invitation not found');\n  if (invitation.expiresAt.getTime() <= Date.now()) {\n    throw new Error('Invitation expired');\n  }\n  await db.memberships.create({ teamId: invitation.teamId, userId });\n  await db.invitations.delete(id);\n}\n\nexport async function resendInvitation(id: string) {\n  const invitation = await db.invitations.findById(id);\n  if (!invitation) throw new Error('Invitation not found');\n  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);\n  const renewed = await db.invitations.update(id, { expiresAt });\n  await mailer.sendInvitation(renewed);\n}\n",
+        "role": "production"
+      },
+      {
+        "id": "expiry-tests",
+        "path": "tests/invitations/expiry.test.ts",
+        "before": null,
+        "after": "import { expect, it, vi } from 'vitest';\nimport { createInvitation, acceptInvitation } from '../../src/invitations/service';\nimport { seedInvitation, membershipCount } from '../fixtures';\n\nit('creates an invitation valid for seven days', async () => {\n  vi.useFakeTimers();\n  vi.setSystemTime(new Date('2026-08-01T12:00:00Z'));\n  try {\n    const invitation = await createInvitation('member@example.com', 'team-1');\n    expect(invitation.expiresAt.toISOString()).toBe('2026-08-08T12:00:00.000Z');\n  } finally {\n    vi.useRealTimers();\n  }\n});\n\nit('rejects acceptance at the expiry boundary', async () => {\n  vi.useFakeTimers();\n  vi.setSystemTime(new Date('2026-08-08T12:00:00Z'));\n  try {\n    await seedInvitation({ id: 'invite-1', expiresAt: new Date() });\n    await expect(acceptInvitation('invite-1', 'user-1')).rejects.toThrow('Invitation expired');\n    expect(await membershipCount('user-1')).toBe(0);\n  } finally {\n    vi.useRealTimers();\n  }\n});\n",
+        "role": "tests"
+      },
+      {
+        "id": "resend-tests",
+        "path": "tests/invitations/resend.test.ts",
+        "before": null,
+        "after": "import { expect, it, vi } from 'vitest';\nimport { resendInvitation } from '../../src/invitations/service';\nimport { seedInvitation, findInvitation } from '../fixtures';\n\nit('renews the invitation when it is resent', async () => {\n  vi.useFakeTimers();\n  vi.setSystemTime(new Date('2026-08-08T12:00:00Z'));\n  try {\n    await seedInvitation({ id: 'invite-1', expiresAt: new Date() });\n    await resendInvitation('invite-1');\n    const invitation = await findInvitation('invite-1');\n    expect(invitation.expiresAt.toISOString()).toBe('2026-08-15T12:00:00.000Z');\n  } finally {\n    vi.useRealTimers();\n  }\n});\n",
+        "role": "tests"
+      },
+      {
+        "id": "generated",
+        "path": "generated/api/invitation.ts",
+        "before": "// Generated from the API schema. Do not edit.\nexport type InvitationResponse = {\n  id: string;\n  email: string;\n  createdAt: string;\n};\n",
+        "after": "// Generated from the API schema. Do not edit.\nexport type InvitationResponse = {\n  id: string;\n  email: string;\n  createdAt: string;\n  expiresAt: string;\n};\n",
+        "role": "generated"
+      },
+      {
+        "id": "schema",
+        "path": "api/invitations.yaml",
+        "before": "Invitation:\n  type: object\n  properties:\n    id:\n      type: string\n    email:\n      type: string\n",
+        "after": "Invitation:\n  type: object\n  properties:\n    id:\n      type: string\n    email:\n      type: string\n    expiresAt:\n      type: string\n      format: date-time\n",
+        "role": "other"
+      }
+    ],
+    "inventory": [
+      {
+        "id": "B1",
+        "fileId": "schema",
+        "path": "api/invitations.yaml",
+        "kind": "text",
+        "rows": [
+          {
+            "n": 1,
+            "op": " ",
+            "text": "      type: string\n",
+            "oldLine": 5,
+            "newLine": 5
+          },
+          {
+            "n": 2,
+            "op": " ",
+            "text": "    email:\n",
+            "oldLine": 6,
+            "newLine": 6
+          },
+          {
+            "n": 3,
+            "op": " ",
+            "text": "      type: string\n",
+            "oldLine": 7,
+            "newLine": 7
+          },
+          {
+            "n": 4,
+            "op": "+",
+            "text": "    expiresAt:\n",
+            "newLine": 8
+          },
+          {
+            "n": 5,
+            "op": "+",
+            "text": "      type: string\n",
+            "newLine": 9
+          },
+          {
+            "n": 6,
+            "op": "+",
+            "text": "      format: date-time\n",
+            "newLine": 10
+          }
+        ],
+        "unit": {
+          "id": "schema:7:8",
+          "fileId": "schema",
+          "oldStart": 7,
+          "oldCount": 0,
+          "newStart": 7,
+          "newCount": 3
+        }
+      },
+      {
+        "id": "B2",
+        "fileId": "generated",
+        "path": "generated/api/invitation.ts",
+        "kind": "text",
+        "rows": [
+          {
+            "n": 1,
+            "op": " ",
+            "text": "  id: string;\n",
+            "oldLine": 3,
+            "newLine": 3
+          },
+          {
+            "n": 2,
+            "op": " ",
+            "text": "  email: string;\n",
+            "oldLine": 4,
+            "newLine": 4
+          },
+          {
+            "n": 3,
+            "op": " ",
+            "text": "  createdAt: string;\n",
+            "oldLine": 5,
+            "newLine": 5
+          },
+          {
+            "n": 4,
+            "op": "+",
+            "text": "  expiresAt: string;\n",
+            "newLine": 6
+          },
+          {
+            "n": 5,
+            "op": " ",
+            "text": "};\n",
+            "oldLine": 6,
+            "newLine": 7
+          }
+        ],
+        "unit": {
+          "id": "generated:5:6",
+          "fileId": "generated",
+          "oldStart": 5,
+          "oldCount": 0,
+          "newStart": 5,
+          "newCount": 1
+        }
+      },
+      {
+        "id": "B3",
+        "fileId": "model",
+        "path": "src/invitations/model.ts",
+        "kind": "text",
+        "rows": [
+          {
+            "n": 1,
+            "op": " ",
+            "text": "  email: string;\n",
+            "oldLine": 3,
+            "newLine": 3
+          },
+          {
+            "n": 2,
+            "op": " ",
+            "text": "  teamId: string;\n",
+            "oldLine": 4,
+            "newLine": 4
+          },
+          {
+            "n": 3,
+            "op": " ",
+            "text": "  createdAt: Date;\n",
+            "oldLine": 5,
+            "newLine": 5
+          },
+          {
+            "n": 4,
+            "op": "+",
+            "text": "  expiresAt: Date;\n",
+            "newLine": 6
+          },
+          {
+            "n": 5,
+            "op": " ",
+            "text": "}\n",
+            "oldLine": 6,
+            "newLine": 7
+          }
+        ],
+        "unit": {
+          "id": "model:5:6",
+          "fileId": "model",
+          "oldStart": 5,
+          "oldCount": 0,
+          "newStart": 5,
+          "newCount": 1
+        }
+      },
+      {
+        "id": "B4",
+        "fileId": "service",
+        "path": "src/invitations/service.ts",
+        "kind": "text",
+        "rows": [
+          {
+            "n": 1,
+            "op": " ",
+            "text": "import { mailer } from '../mailer';\n",
+            "oldLine": 2,
+            "newLine": 2
+          },
+          {
+            "n": 2,
+            "op": " ",
+            "text": "\n",
+            "oldLine": 3,
+            "newLine": 3
+          },
+          {
+            "n": 3,
+            "op": " ",
+            "text": "export async function createInvitation(email: string, teamId: string) {\n",
+            "oldLine": 4,
+            "newLine": 4
+          },
+          {
+            "n": 4,
+            "op": "-",
+            "text": "  const invitation = await db.invitations.create({ email, teamId });\n",
+            "oldLine": 5
+          },
+          {
+            "n": 5,
+            "op": "+",
+            "text": "  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);\n",
+            "newLine": 5
+          },
+          {
+            "n": 6,
+            "op": "+",
+            "text": "  const invitation = await db.invitations.create({ email, teamId, expiresAt });\n",
+            "newLine": 6
+          },
+          {
+            "n": 7,
+            "op": " ",
+            "text": "  await mailer.sendInvitation(invitation);\n",
+            "oldLine": 6,
+            "newLine": 7
+          },
+          {
+            "n": 8,
+            "op": " ",
+            "text": "  return invitation;\n",
+            "oldLine": 7,
+            "newLine": 8
+          },
+          {
+            "n": 9,
+            "op": " ",
+            "text": "}\n",
+            "oldLine": 8,
+            "newLine": 9
+          }
+        ],
+        "unit": {
+          "id": "service:5:5",
+          "fileId": "service",
+          "oldStart": 4,
+          "oldCount": 1,
+          "newStart": 4,
+          "newCount": 2
+        }
+      },
+      {
+        "id": "B5",
+        "fileId": "service",
+        "path": "src/invitations/service.ts",
+        "kind": "text",
+        "rows": [
+          {
+            "n": 1,
+            "op": " ",
+            "text": "export async function acceptInvitation(id: string, userId: string) {\n",
+            "oldLine": 10,
+            "newLine": 11
+          },
+          {
+            "n": 2,
+            "op": " ",
+            "text": "  const invitation = await db.invitations.findById(id);\n",
+            "oldLine": 11,
+            "newLine": 12
+          },
+          {
+            "n": 3,
+            "op": " ",
+            "text": "  if (!invitation) throw new Error('Invitation not found');\n",
+            "oldLine": 12,
+            "newLine": 13
+          },
+          {
+            "n": 4,
+            "op": "+",
+            "text": "  if (invitation.expiresAt.getTime() <= Date.now()) {\n",
+            "newLine": 14
+          },
+          {
+            "n": 5,
+            "op": "+",
+            "text": "    throw new Error('Invitation expired');\n",
+            "newLine": 15
+          },
+          {
+            "n": 6,
+            "op": "+",
+            "text": "  }\n",
+            "newLine": 16
+          },
+          {
+            "n": 7,
+            "op": " ",
+            "text": "  await db.memberships.create({ teamId: invitation.teamId, userId });\n",
+            "oldLine": 13,
+            "newLine": 17
+          },
+          {
+            "n": 8,
+            "op": " ",
+            "text": "  await db.invitations.delete(id);\n",
+            "oldLine": 14,
+            "newLine": 18
+          },
+          {
+            "n": 9,
+            "op": " ",
+            "text": "}\n",
+            "oldLine": 15,
+            "newLine": 19
+          }
+        ],
+        "unit": {
+          "id": "service:12:14",
+          "fileId": "service",
+          "oldStart": 12,
+          "oldCount": 0,
+          "newStart": 13,
+          "newCount": 3
+        }
+      },
+      {
+        "id": "B6",
+        "fileId": "service",
+        "path": "src/invitations/service.ts",
+        "kind": "text",
+        "rows": [
+          {
+            "n": 1,
+            "op": " ",
+            "text": "export async function resendInvitation(id: string) {\n",
+            "oldLine": 17,
+            "newLine": 21
+          },
+          {
+            "n": 2,
+            "op": " ",
+            "text": "  const invitation = await db.invitations.findById(id);\n",
+            "oldLine": 18,
+            "newLine": 22
+          },
+          {
+            "n": 3,
+            "op": " ",
+            "text": "  if (!invitation) throw new Error('Invitation not found');\n",
+            "oldLine": 19,
+            "newLine": 23
+          },
+          {
+            "n": 4,
+            "op": "-",
+            "text": "  await mailer.sendInvitation(invitation);\n",
+            "oldLine": 20
+          },
+          {
+            "n": 5,
+            "op": "+",
+            "text": "  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);\n",
+            "newLine": 24
+          },
+          {
+            "n": 6,
+            "op": "+",
+            "text": "  const renewed = await db.invitations.update(id, { expiresAt });\n",
+            "newLine": 25
+          },
+          {
+            "n": 7,
+            "op": "+",
+            "text": "  await mailer.sendInvitation(renewed);\n",
+            "newLine": 26
+          },
+          {
+            "n": 8,
+            "op": " ",
+            "text": "}\n",
+            "oldLine": 21,
+            "newLine": 27
+          }
+        ],
+        "unit": {
+          "id": "service:20:24",
+          "fileId": "service",
+          "oldStart": 19,
+          "oldCount": 1,
+          "newStart": 23,
+          "newCount": 3
+        }
+      },
+      {
+        "id": "B7",
+        "fileId": "expiry-tests",
+        "path": "tests/invitations/expiry.test.ts",
+        "kind": "text",
+        "rows": [
+          {
+            "n": 1,
+            "op": "+",
+            "text": "import { expect, it, vi } from 'vitest';\n",
+            "newLine": 1
+          },
+          {
+            "n": 2,
+            "op": "+",
+            "text": "import { createInvitation, acceptInvitation } from '../../src/invitations/service';\n",
+            "newLine": 2
+          },
+          {
+            "n": 3,
+            "op": "+",
+            "text": "import { seedInvitation, membershipCount } from '../fixtures';\n",
+            "newLine": 3
+          },
+          {
+            "n": 4,
+            "op": "+",
+            "text": "\n",
+            "newLine": 4
+          },
+          {
+            "n": 5,
+            "op": "+",
+            "text": "it('creates an invitation valid for seven days', async () => {\n",
+            "newLine": 5
+          },
+          {
+            "n": 6,
+            "op": "+",
+            "text": "  vi.useFakeTimers();\n",
+            "newLine": 6
+          },
+          {
+            "n": 7,
+            "op": "+",
+            "text": "  vi.setSystemTime(new Date('2026-08-01T12:00:00Z'));\n",
+            "newLine": 7
+          },
+          {
+            "n": 8,
+            "op": "+",
+            "text": "  try {\n",
+            "newLine": 8
+          },
+          {
+            "n": 9,
+            "op": "+",
+            "text": "    const invitation = await createInvitation('member@example.com', 'team-1');\n",
+            "newLine": 9
+          },
+          {
+            "n": 10,
+            "op": "+",
+            "text": "    expect(invitation.expiresAt.toISOString()).toBe('2026-08-08T12:00:00.000Z');\n",
+            "newLine": 10
+          },
+          {
+            "n": 11,
+            "op": "+",
+            "text": "  } finally {\n",
+            "newLine": 11
+          },
+          {
+            "n": 12,
+            "op": "+",
+            "text": "    vi.useRealTimers();\n",
+            "newLine": 12
+          },
+          {
+            "n": 13,
+            "op": "+",
+            "text": "  }\n",
+            "newLine": 13
+          },
+          {
+            "n": 14,
+            "op": "+",
+            "text": "});\n",
+            "newLine": 14
+          },
+          {
+            "n": 15,
+            "op": "+",
+            "text": "\n",
+            "newLine": 15
+          },
+          {
+            "n": 16,
+            "op": "+",
+            "text": "it('rejects acceptance at the expiry boundary', async () => {\n",
+            "newLine": 16
+          },
+          {
+            "n": 17,
+            "op": "+",
+            "text": "  vi.useFakeTimers();\n",
+            "newLine": 17
+          },
+          {
+            "n": 18,
+            "op": "+",
+            "text": "  vi.setSystemTime(new Date('2026-08-08T12:00:00Z'));\n",
+            "newLine": 18
+          },
+          {
+            "n": 19,
+            "op": "+",
+            "text": "  try {\n",
+            "newLine": 19
+          },
+          {
+            "n": 20,
+            "op": "+",
+            "text": "    await seedInvitation({ id: 'invite-1', expiresAt: new Date() });\n",
+            "newLine": 20
+          },
+          {
+            "n": 21,
+            "op": "+",
+            "text": "    await expect(acceptInvitation('invite-1', 'user-1')).rejects.toThrow('Invitation expired');\n",
+            "newLine": 21
+          },
+          {
+            "n": 22,
+            "op": "+",
+            "text": "    expect(await membershipCount('user-1')).toBe(0);\n",
+            "newLine": 22
+          },
+          {
+            "n": 23,
+            "op": "+",
+            "text": "  } finally {\n",
+            "newLine": 23
+          },
+          {
+            "n": 24,
+            "op": "+",
+            "text": "    vi.useRealTimers();\n",
+            "newLine": 24
+          },
+          {
+            "n": 25,
+            "op": "+",
+            "text": "  }\n",
+            "newLine": 25
+          },
+          {
+            "n": 26,
+            "op": "+",
+            "text": "});\n",
+            "newLine": 26
+          }
+        ],
+        "unit": {
+          "id": "expiry-tests:0:1",
+          "fileId": "expiry-tests",
+          "oldStart": 0,
+          "oldCount": 0,
+          "newStart": 0,
+          "newCount": 26
+        }
+      },
+      {
+        "id": "B8",
+        "fileId": "resend-tests",
+        "path": "tests/invitations/resend.test.ts",
+        "kind": "text",
+        "rows": [
+          {
+            "n": 1,
+            "op": "+",
+            "text": "import { expect, it, vi } from 'vitest';\n",
+            "newLine": 1
+          },
+          {
+            "n": 2,
+            "op": "+",
+            "text": "import { resendInvitation } from '../../src/invitations/service';\n",
+            "newLine": 2
+          },
+          {
+            "n": 3,
+            "op": "+",
+            "text": "import { seedInvitation, findInvitation } from '../fixtures';\n",
+            "newLine": 3
+          },
+          {
+            "n": 4,
+            "op": "+",
+            "text": "\n",
+            "newLine": 4
+          },
+          {
+            "n": 5,
+            "op": "+",
+            "text": "it('renews the invitation when it is resent', async () => {\n",
+            "newLine": 5
+          },
+          {
+            "n": 6,
+            "op": "+",
+            "text": "  vi.useFakeTimers();\n",
+            "newLine": 6
+          },
+          {
+            "n": 7,
+            "op": "+",
+            "text": "  vi.setSystemTime(new Date('2026-08-08T12:00:00Z'));\n",
+            "newLine": 7
+          },
+          {
+            "n": 8,
+            "op": "+",
+            "text": "  try {\n",
+            "newLine": 8
+          },
+          {
+            "n": 9,
+            "op": "+",
+            "text": "    await seedInvitation({ id: 'invite-1', expiresAt: new Date() });\n",
+            "newLine": 9
+          },
+          {
+            "n": 10,
+            "op": "+",
+            "text": "    await resendInvitation('invite-1');\n",
+            "newLine": 10
+          },
+          {
+            "n": 11,
+            "op": "+",
+            "text": "    const invitation = await findInvitation('invite-1');\n",
+            "newLine": 11
+          },
+          {
+            "n": 12,
+            "op": "+",
+            "text": "    expect(invitation.expiresAt.toISOString()).toBe('2026-08-15T12:00:00.000Z');\n",
+            "newLine": 12
+          },
+          {
+            "n": 13,
+            "op": "+",
+            "text": "  } finally {\n",
+            "newLine": 13
+          },
+          {
+            "n": 14,
+            "op": "+",
+            "text": "    vi.useRealTimers();\n",
+            "newLine": 14
+          },
+          {
+            "n": 15,
+            "op": "+",
+            "text": "  }\n",
+            "newLine": 15
+          },
+          {
+            "n": 16,
+            "op": "+",
+            "text": "});\n",
+            "newLine": 16
+          }
+        ],
+        "unit": {
+          "id": "resend-tests:0:1",
+          "fileId": "resend-tests",
+          "oldStart": 0,
+          "oldCount": 0,
+          "newStart": 0,
+          "newCount": 16
+        }
+      }
+    ]
+  },
+  "digest": "27f415879d25edae2f9f64f1bc3542be65c686e8edd959927995c4cb2c265972"
+}

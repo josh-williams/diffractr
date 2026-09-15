@@ -1,0 +1,12 @@
+Snapshot: fixture-metadata-v1
+example/assets: assets ← main
+Rows are block-local, inclusive; context is not owned.
+
+B1 "assets/icon.png" [whole change]
+Binary content
+
+B2 "cache/.gitkeep" [whole change]
+Empty file added
+
+B3 "scripts/start.sh" [whole change]
+Mode 100644 → 100755
