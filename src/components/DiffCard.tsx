@@ -1,14 +1,8 @@
+import DiffHeader from "./DiffHeader";
 import { Fragment, useMemo, useState } from "react";
 import { FileDiff } from "@pierre/diffs/react";
 import type { DiffLineAnnotation, SelectedLineRange } from "@pierre/diffs";
-import {
-  ChevronDown,
-  ChevronRight,
-  FileCode2,
-  Flag as FlagIcon,
-  MessageSquare,
-  Maximize2,
-} from "lucide-react";
+import { Flag as FlagIcon, MessageSquare } from "lucide-react";
 import Markdown from "./Markdown";
 import {
   unitDiff,
@@ -82,64 +76,17 @@ export default function DiffCard({
 
   return (
     <article className="mb-3 overflow-hidden rounded-lg border border-mist-200 bg-mist-950 text-mist-200 dark:border-mist-700">
-      <header className="flex items-center gap-2 border-b border-mist-800 bg-mist-950 px-2 py-1.5 text-mist-200">
-        <button
-          className="flex min-w-0 flex-1 items-center gap-2 text-left [&>svg]:shrink-0 [&>span]:truncate [&>span]:font-sans [&>span]:text-xs"
-          onClick={() => setCollapsed(!collapsed)}
-          aria-expanded={!collapsed}
-          aria-label={`${collapsed ? "Expand" : "Collapse"} ${file.path}`}
-        >
-          {collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
-          <FileCode2 size={16} />
-          <span>{file.path}</span>
-        </button>
-        <span className="hidden text-xs text-mist-400 sm:inline">
-          {file.role}
-        </span>
-        {!file.notice && (
-          <span className="font-sans text-xs text-emerald-400">+{added}</span>
-        )}
-        {!file.notice && (
-          <span className="font-sans text-xs text-red-400">−{removed}</span>
-        )}
-        <button
-          className="inline-flex shrink-0 items-center justify-center rounded p-1 text-mist-400 hover:bg-mist-800 hover:text-white"
-          disabled={!!file.notice || file.before === file.after}
-          title="Open complete file diff"
-          aria-label={`Open complete diff for ${file.path}`}
-          onClick={() => onFullFile(file)}
-        >
-          <Maximize2 size={15} />
-        </button>
-        {!collapsed && selection && (
-          <button
-            className="inline-flex items-center gap-1.5 rounded border border-mist-700 px-2 py-1 text-xs text-mist-200 hover:bg-mist-800"
-            onClick={() =>
-              onComment({
-                fileId: file.id,
-                side: selection.side ?? "additions",
-                start: Math.min(selection.start, selection.end),
-                end: Math.max(selection.start, selection.end),
-              })
-            }
-          >
-            <MessageSquare size={13} /> Comment on lines{" "}
-            {Math.min(selection.start, selection.end)}–
-            {Math.max(selection.start, selection.end)}
-          </button>
-        )}
-      </header>
-      {metadata &&
-        file.oldMode !== undefined &&
-        file.oldMode !== file.newMode && (
-          <p className="border-b border-mist-800 px-3 py-1.5 text-xs text-mist-400">
-            {file.oldMode === null
-              ? "Added file"
-              : file.newMode === null
-                ? "Deleted file"
-                : `Mode ${file.oldMode} → ${file.newMode}`}
-          </p>
-        )}
+      <DiffHeader
+        file={file}
+        collapsed={collapsed}
+        toggle={() => setCollapsed(!collapsed)}
+        selection={selection}
+        onComment={onComment}
+        onFullFile={onFullFile}
+        added={added}
+        removed={removed}
+        metadata={metadata}
+      />
       {flags
         .filter((f) => !f.anchor)
         .map((f) => (

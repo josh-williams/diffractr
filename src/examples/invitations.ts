@@ -193,7 +193,9 @@ const expiryUnits = units.filter(
   (u) => u.fileId !== "resend-tests" && u.id !== serviceUnits.at(-1)?.id,
 );
 
-const resendUnits = units.filter((u) => !expiryUnits.includes(u));
+const expiryIds = new Set(expiryUnits.map((u) => u.id));
+
+const resendUnits = units.filter((u) => !expiryIds.has(u.id));
 
 const expiryCheck = serviceUnits[1];
 

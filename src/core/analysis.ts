@@ -122,32 +122,27 @@ export function inventory(snapshot: Snapshot): Block[] {
   return blocks;
 }
 
-const selectionSchema = z
-  .object({ block: z.string().min(1), rows: z.string().min(1).optional() })
-  .strict();
+const selectionSchema = z.strictObject({
+  block: z.string().min(1),
+  rows: z.string().min(1).optional(),
+});
 
-export const analysisSchema = z
-  .object({
-    version: z.literal(1),
-    snapshotId: z.string().min(1),
-    title: z.string().min(1),
-    description: z.string(),
-    groups: z.array(
-      z
-        .object({
-          title: z.string().min(1),
-          description: z.string().min(1),
-          changes: z.array(selectionSchema).min(1),
-        })
-        .strict(),
-    ),
-    flags: z
-      .array(
-        z.object({ text: z.string().min(1), anchor: selectionSchema }).strict(),
-      )
-      .default([]),
-  })
-  .strict();
+export const analysisSchema = z.strictObject({
+  version: z.literal(1),
+  snapshotId: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string(),
+  groups: z.array(
+    z.strictObject({
+      title: z.string().min(1),
+      description: z.string().min(1),
+      changes: z.array(selectionSchema).min(1),
+    }),
+  ),
+  flags: z
+    .array(z.strictObject({ text: z.string().min(1), anchor: selectionSchema }))
+    .default([]),
+});
 
 export type AuthoredAnalysis = z.infer<typeof analysisSchema>;
 
@@ -300,6 +295,7 @@ export function validateAnalysis(
     };
 
     const selected = new Map<string, BlockRow[]>();
+    const fileIds = new Set<string>();
 
     for (const [ci, selection] of group.changes.entries())
       try {
@@ -313,8 +309,10 @@ export function validateAnalysis(
           else ownership.set(key, gi);
         }
 
-        if (!section.fileIds.includes(block.fileId))
+        if (!fileIds.has(block.fileId)) {
+          fileIds.add(block.fileId);
           section.fileIds.push(block.fileId);
+        }
 
         if (block.kind === "metadata")
           section.metadataFileIds.push(block.fileId);

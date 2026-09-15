@@ -29,7 +29,7 @@ type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 
-function canonical(value: JsonValue): string {
+function canonical(value: Snapshot | JsonValue | undefined): string {
   if (Array.isArray(value)) return "[" + value.map(canonical).join(",") + "]";
 
   if (value instanceof Object)
@@ -43,13 +43,11 @@ function canonical(value: JsonValue): string {
       "}"
     );
 
-  return JSON.stringify(value);
+  return JSON.stringify(value) ?? "null";
 }
 
 const digest = (snapshot: Snapshot) =>
-  createHash("sha256")
-    .update(canonical(z.json().parse(JSON.parse(JSON.stringify(snapshot)))))
-    .digest("hex");
+  createHash("sha256").update(canonical(snapshot)).digest("hex");
 
 export function saveCapture(snapshot: Snapshot, directory: string) {
   snapshot = snapshotSchema.parse(snapshot);
