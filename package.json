@@ -1,7 +1,6 @@
 {
   "name": "diffractr",
   "version": "0.1.0",
-  "private": true,
   "description": "Local code reviews organized by behavior, with agent-authored explanations and anchored feedback",
   "license": "MIT",
   "repository": {
@@ -16,6 +15,10 @@
     "skills"
   ],
   "type": "module",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "review": "node scripts/review.mjs",
@@ -28,7 +31,8 @@
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "prepack": "npm run build",
-    "test:package": "npm run build && node scripts/test-package.mjs"
+    "test:package": "npm run build && node scripts/test-package.mjs",
+    "release:check": "node scripts/check-release.mjs"
   },
   "devDependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",

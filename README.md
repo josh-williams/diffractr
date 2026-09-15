@@ -55,7 +55,7 @@ npm pack
 
 The prepack step builds the viewer and compiled CLI. The resulting `diffractr-0.1.0.tgz` contains built assets, the skill, documentation, and licenses. It excludes application source, tests, and development dependencies. `npm run test:package` builds and tests the tarball through an offline installation in a temporary Git repository, including the independently installed skill and authenticated HTTP viewer.
 
-Publishing is a separate step; this repository remains marked private until a release is explicitly prepared.
+Publishing is a separate step. See [Releasing](docs/releasing.md) for initial npm setup and the version/tag release workflow.
 
 ## Review a local repository without analysis
 

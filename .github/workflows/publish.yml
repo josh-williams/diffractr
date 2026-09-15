@@ -1,0 +1,53 @@
+name: Publish npm package
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: npm-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Verify release version
+        run: npm run release:check
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+      - run: npm test
+      - run: npm run build
+      - name: Pack once
+        id: pack
+        shell: bash
+        run: |
+          npm pack --ignore-scripts --json > "$RUNNER_TEMP/pack.json"
+          node --input-type=module -e 'import fs from "node:fs"; const [p] = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + "/pack.json")); fs.appendFileSync(process.env.GITHUB_OUTPUT, `tarball=${p.filename}\n`);'
+      - name: Test packaged installation
+        run: node scripts/test-package.mjs "$TARBALL"
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}
+      - name: Publish tested tarball
+        run: npm publish "$TARBALL" --ignore-scripts --access public --provenance
+        env:
+          TARBALL: ${{ steps.pack.outputs.tarball }}

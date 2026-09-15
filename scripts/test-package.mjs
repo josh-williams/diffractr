@@ -1,7 +1,13 @@
 import { execFileSync, spawn } from "node:child_process";
-import { mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
+import {
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+  rmSync,
+  statSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import assert from "node:assert/strict";
 
 const root = process.cwd();
@@ -20,15 +26,31 @@ const run = (command, args, cwd = temp) =>
 let server;
 
 try {
-  const [packed] = JSON.parse(
-    run(
-      npm,
-      ["pack", "--ignore-scripts", "--json", "--pack-destination", temp],
-      root,
-    ),
-  );
+  const suppliedTarball = process.argv[2];
 
-  const tarball = resolve(temp, packed.filename);
+  const [packed] = suppliedTarball
+    ? [
+        {
+          filename: basename(suppliedTarball),
+          size: statSync(resolve(suppliedTarball)).size,
+          files: run("tar", ["-tzf", resolve(suppliedTarball)])
+            .trim()
+            .split("\n")
+            .map((path) => ({ path: path.replace(/^package\//, "") })),
+        },
+      ]
+    : JSON.parse(
+        run(
+          npm,
+          ["pack", "--ignore-scripts", "--json", "--pack-destination", temp],
+          root,
+        ),
+      );
+
+  const tarball = suppliedTarball
+    ? resolve(suppliedTarball)
+    : resolve(temp, packed.filename);
+
   assert(packed.files.some((file) => file.path === "dist/viewer/index.html"));
   assert(
     !packed.files.some(
@@ -40,6 +62,13 @@ try {
   run(npm, ["install", "--offline", "--ignore-scripts", "--omit=dev", tarball]);
   const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
   const installed = join(temp, "node_modules", manifest.name);
+
+  const packagedManifest = JSON.parse(
+    readFileSync(join(installed, "package.json"), "utf8"),
+  );
+
+  assert.equal(packagedManifest.name, manifest.name);
+  assert.equal(packagedManifest.version, manifest.version);
   const cli = join(installed, "dist/cli.mjs");
   assert.match(
     run(npm, ["exec", "--offline", "--", "diffractr", "--help"]),
