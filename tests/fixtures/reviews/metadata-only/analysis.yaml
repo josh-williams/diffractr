@@ -1,0 +1,19 @@
+version: 1
+snapshotId: fixture-metadata-v1
+title: Prepare startup assets
+description: Make the startup script executable and add supporting assets.
+groups:
+  - title: Prepare startup assets
+    description:
+      The script becomes executable. The icon and empty cache placeholder
+      have no textual diff.
+    changes:
+      - block: B1
+      - block: B2
+      - block: B3
+flags:
+  - text:
+      The binary icon cannot be inspected as text; check its appearance in the
+      application.
+    anchor:
+      block: B2
