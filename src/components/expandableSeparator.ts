@@ -16,5 +16,6 @@ export function expandableSeparator(
   button.setAttribute("aria-label", `Expand ${hunk.lines} unmodified lines`);
   button.onclick = () =>
     instance.expandHunk(hunk.hunkIndex, "both", hunk.lines);
+
   return button;
 }

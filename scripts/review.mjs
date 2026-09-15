@@ -23,6 +23,7 @@ export function serveSnapshot(
   if (!existsSync(resolve(dist, "index.html")))
     throw new Error("Build the app first: npm run build");
   const token = randomBytes(24).toString("hex");
+
   const mime = {
     ".html": "text/html",
     ".js": "text/javascript",
@@ -32,28 +33,37 @@ export function serveSnapshot(
     ".woff": "font/woff",
     ".woff2": "font/woff2",
   };
+
   const server = createServer((req, res) => {
     const authority = `127.0.0.1:${server.address().port}`;
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
+
     if (
       req.headers.host !== authority ||
       (req.headers.origin && req.headers.origin !== `http://${authority}`)
     ) {
       res.writeHead(403).end();
+
       return;
     }
+
     if (req.method !== "GET") {
       res.writeHead(405).end();
+
       return;
     }
+
     const url = new URL(req.url, `http://${authority}`);
+
     if (["/api/snapshot", "/api/review"].includes(url.pathname)) {
       if (req.headers.authorization !== `Bearer ${token}`) {
         res.writeHead(403).end();
+
         return;
       }
+
       res.setHeader("Content-Type", "application/json");
       res.end(
         JSON.stringify(
@@ -62,8 +72,10 @@ export function serveSnapshot(
             : { snapshot, analysis, errors },
         ),
       );
+
       return;
     }
+
     try {
       const path = resolve(
         dist,
@@ -72,10 +84,13 @@ export function serveSnapshot(
             url.pathname === "/" ? "/index.html" : url.pathname,
           ),
       );
+
       if (!path.startsWith(dist + sep)) {
         res.writeHead(404).end();
+
         return;
       }
+
       res.setHeader(
         "Content-Type",
         mime[extname(path)] ?? "application/octet-stream",
@@ -95,6 +110,7 @@ export function serveSnapshot(
       res.writeHead(404).end();
     }
   });
+
   return new Promise((resolveServer, reject) => {
     server.once("error", reject);
     server.listen(port, "127.0.0.1", () =>
@@ -105,19 +121,25 @@ export function serveSnapshot(
     );
   });
 }
+
 async function main() {
   const args = process.argv.slice(2);
+
   if (args.includes("--help")) {
     console.log(
       "Usage: npm run review -- [--repo <path>] [--base <ref>] [--port <port>]\n\nCaptures all net local changes since the merge base. Does not fetch or modify Git.",
     );
+
     return;
   }
+
   let repository = process.cwd(),
     base,
     port = 5174;
+
   for (let i = 0; i < args.length; i += 2) {
     const [key, value] = args.slice(i, i + 2);
+
     if (
       !["--repo", "--base", "--port"].includes(key) ||
       !value ||
@@ -126,23 +148,30 @@ async function main() {
       throw new Error(
         "Expected --repo <path>, --base <ref>, or --port <port>.",
       );
+
     if (key === "--repo") repository = resolve(value);
+
     if (key === "--base") base = value;
+
     if (key === "--port") {
       port = Number(value);
+
       if (!Number.isInteger(port) || port < 0 || port > 65535)
         throw new Error("Port must be between 0 and 65535.");
     }
   }
+
   console.log("Capturing local changes…");
   const snapshot = capture(repository, { base });
   const { server, url } = await serveSnapshot(snapshot, { port });
   console.log(
     `${snapshot.repository} · ${snapshot.branch} ← ${snapshot.base}\n${snapshot.files.length} changed files · snapshot ${snapshot.id.slice(0, 12)}\n\n${url}\n\nThis snapshot is fixed. Run again to capture subsequent edits. Press Ctrl+C to stop.`,
   );
+
   for (const signal of ["SIGINT", "SIGTERM"])
     process.once(signal, () => server.close());
 }
+
 if (
   process.argv[1] &&
   resolve(process.argv[1]) === fileURLToPath(import.meta.url)

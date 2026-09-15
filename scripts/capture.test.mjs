@@ -15,15 +15,19 @@ import { capture } from "./capture.mjs";
 import { serveSnapshot } from "./review.mjs";
 import { snapshotSchema } from "../src/core/snapshot";
 import { indexChanges, unitDiff, exportFeedback } from "../src/core/review";
+
 const roots = [];
+
 const git = (root, ...args) =>
   execFileSync("git", args, { cwd: root, stdio: ["ignore", "pipe", "pipe"] })
     .toString()
     .trim();
+
 function write(root, path, data) {
   mkdirSync(dirname(join(root, path)), { recursive: true });
   writeFileSync(join(root, path), data);
 }
+
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "diffraction-test-"));
   roots.push(root);
@@ -35,12 +39,15 @@ function fixture() {
   git(root, "add", ".");
   git(root, "commit", "-m", "fixture");
   git(root, "switch", "-c", "feature");
+
   return root;
 }
+
 afterEach(() => {
   for (const root of roots.splice(0))
     rmSync(root, { recursive: true, force: true });
 });
+
 describe("local snapshot capture", () => {
   it("combines committed, staged, unstaged and untracked changes without touching the index", () => {
     const root = fixture();
@@ -67,6 +74,7 @@ describe("local snapshot capture", () => {
     expect(readFileSync(join(root, ".git/index"))).toEqual(index);
     expect(capture(root).id).toBe(result.id);
     const units = indexChanges(result);
+
     for (const unit of units)
       expect(
         unitDiff(
@@ -172,6 +180,7 @@ describe("local snapshot capture", () => {
   it("retries a concurrent edit and rejects a continuously changing capture", () => {
     const root = fixture();
     let changed = false;
+
     const result = capture(root, {
       afterRead: () => {
         if (!changed) {
@@ -180,6 +189,7 @@ describe("local snapshot capture", () => {
         }
       },
     });
+
     expect(result.files[0].after).toBe("new\n");
     expect(() =>
       capture(root, {
@@ -210,15 +220,19 @@ describe("local snapshot capture", () => {
     git(root, "add", ".");
     git(root, "commit", "-m", "main");
     git(root, "switch", "feature");
+
     try {
       git(root, "merge", "main");
     } catch {}
+
     expect(() => capture(root)).toThrow("Resolve merge conflicts");
   });
 });
+
 function basenameForTest(root) {
   return root.split("/").at(-1) + "-worktree";
 }
+
 it("serves a fixed snapshot only with its token and same-origin host", async () => {
   const root = fixture();
   write(root, "src/file.ts", "captured\n");
@@ -226,9 +240,11 @@ it("serves a fixed snapshot only with its token and same-origin host", async () 
   const dist = join(root, "ui");
   write(dist, "index.html", "<html>review</html>");
   const { server, url } = await serveSnapshot(snapshot, { dist });
+
   try {
     const parsed = new URL(url),
       token = new URLSearchParams(parsed.hash.slice(1)).get("snapshot");
+
     expect((await fetch(parsed.origin)).status).toBe(200);
     expect((await fetch(parsed.origin + "/api/snapshot")).status).toBe(403);
     expect(
@@ -242,9 +258,11 @@ it("serves a fixed snapshot only with its token and same-origin host", async () 
       ).status,
     ).toBe(403);
     write(root, "src/file.ts", "later\n");
+
     const response = await fetch(parsed.origin + "/api/snapshot", {
       headers: { authorization: `Bearer ${token}` },
     });
+
     expect((await response.json()).files[0].after).toBe("captured\n");
     expect((await fetch(parsed.origin + "/.git/config")).status).toBe(404);
   } finally {

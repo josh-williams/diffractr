@@ -184,14 +184,21 @@ export type InvitationResponse = {
     },
   ],
 };
+
 const units = indexChanges(snapshot);
+
 const serviceUnits = units.filter((u) => u.fileId === "service");
+
 const expiryUnits = units.filter(
   (u) => u.fileId !== "resend-tests" && u.id !== serviceUnits.at(-1)?.id,
 );
+
 const resendUnits = units.filter((u) => !expiryUnits.includes(u));
+
 const expiryCheck = serviceUnits[1];
+
 const renewal = serviceUnits[2];
+
 export const analysis: AuthoredAnalysis = {
   version: 1,
   snapshotId: snapshot.id,

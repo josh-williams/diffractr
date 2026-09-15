@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  analysisSchema,
   inventory,
   inventoryText,
   parseAnalysis,
@@ -8,6 +9,7 @@ import {
   type AuthoredAnalysis,
 } from "./analysis";
 import { indexChanges, unitDiff, type Snapshot } from "./review";
+
 const source: Snapshot = {
   id: "snapshot",
   repository: "repo",
@@ -23,6 +25,7 @@ const source: Snapshot = {
     },
   ],
 };
+
 function documentFor(snapshot = source): AuthoredAnalysis {
   return {
     version: 1,
@@ -39,6 +42,7 @@ function documentFor(snapshot = source): AuthoredAnalysis {
     flags: [],
   };
 }
+
 describe("block inventory and row selectors", () => {
   it("numbers source rows once, showing old/new coordinates and context", () => {
     const block = inventory(source)[0];
@@ -85,6 +89,7 @@ describe("block inventory and row selectors", () => {
         { id: "empty", path: "empty", before: null, after: "", role: "other" },
       ],
     };
+
     const blocks = inventory(snapshot);
     expect(blocks.filter((b) => b.kind === "metadata")).toHaveLength(3);
     const doc = documentFor(snapshot);
@@ -99,6 +104,7 @@ describe("block inventory and row selectors", () => {
     );
   });
 });
+
 describe("group resolution and projection", () => {
   it("splits adjacent replacements without leaking code, losing counts or changing line coordinates", () => {
     const doc = documentFor();
@@ -122,13 +128,13 @@ describe("group resolution and projection", () => {
       [1, 1, 1, 1],
       [2, 2, 1, 1],
     ]);
+
     for (const [i, unit] of result.units.entries()) {
-      const patch = unitDiff(
-        source.files[0],
-        unit,
-        indexChanges(source),
-        Infinity,
-      );
+      const patch = unitDiff(source.files[0], unit, indexChanges(source), {
+        before: Infinity,
+        after: Infinity,
+      });
+
       expect(patch.deletionLines.join("")).toBe(i ? "old B\n" : "old A\n");
       expect(patch.additionLines.join("")).toBe(i ? "new B\n" : "new A\n");
       expect(patch.hunks[0].additionStart).toBe(i + 2);
@@ -155,8 +161,8 @@ describe("group resolution and projection", () => {
         .analysis,
     ).toBeNull();
     expect(
-      validateAnalysis(source, { ...documentFor(), id: "invented" }).analysis,
-    ).toBeNull();
+      analysisSchema.safeParse({ ...documentFor(), id: "invented" }).success,
+    ).toBe(false);
   });
   it("combines separate selectors for the same group before projection", () => {
     const doc = documentFor();
@@ -177,6 +183,7 @@ describe("group resolution and projection", () => {
         ...source,
         files: [{ ...source.files[0], before, after }],
       };
+
       const doc = documentFor(snapshot);
       doc.groups = [
         {
@@ -192,9 +199,14 @@ describe("group resolution and projection", () => {
       ];
       const result = validateAnalysis(snapshot, doc);
       expect(result.errors).toEqual([]);
+
       const texts = result.units.map((u) =>
-        unitDiff(snapshot.files[0], u, indexChanges(snapshot), 100),
+        unitDiff(snapshot.files[0], u, indexChanges(snapshot), {
+          before: 100,
+          after: 100,
+        }),
       );
+
       expect(
         texts
           .map((p) => (after ? p.additionLines : p.deletionLines).join(""))
@@ -210,6 +222,7 @@ describe("group resolution and projection", () => {
       ).errors,
     ).toEqual([]));
 });
+
 describe("flag anchors", () => {
   it("derives ownership and anchors new-side or deleted rows", () => {
     const doc = documentFor();
@@ -260,6 +273,7 @@ describe("flag anchors", () => {
         },
       ],
     };
+
     const doc = documentFor(snapshot);
     doc.flags = [{ text: "Check image", anchor: { block: "B1" } }];
     const result = validateAnalysis(snapshot, doc);
@@ -267,10 +281,11 @@ describe("flag anchors", () => {
     expect(result.analysis?.flags[0].anchor).toBeUndefined();
   });
 });
+
 it("parses YAML markdown while rejecting duplicate keys and aliases", () => {
   expect(
     parseAnalysis(
-      "description: |\n  **Behavior**\n  ```mermaid\n  graph LR\n  A --> B\n  ```\n",
+      "version: 1\nsnapshotId: snapshot\ntitle: Review\ngroups: []\ndescription: |\n  **Behavior**\n  ```mermaid\n  graph LR\n  A --> B\n  ```\n",
     ),
   ).toMatchObject({ description: expect.stringContaining("```mermaid") });
   expect(() => parseAnalysis("title: A\ntitle: B")).toThrow();

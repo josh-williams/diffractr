@@ -26,7 +26,7 @@ import {
   type SourceFile,
   type Snapshot,
 } from "./core/review";
-import { validateAnalysis } from "./core/analysis";
+import { analysisSchema, validateAnalysis } from "./core/analysis";
 import Markdown from "./components/Markdown";
 import DiffCard from "./components/DiffCard";
 import Dialog from "./components/Dialog";
@@ -39,23 +39,28 @@ const roleColors = {
   generated: "bg-cyan-400",
   other: "bg-amber-400",
 };
+
 function loadTheme(): "light" | "dark" {
   try {
     const saved = localStorage.getItem("diffraction:theme");
+
     if (saved === "light" || saved === "dark") return saved;
   } catch {
     /* Storage is optional. */
   }
+
   return window.matchMedia("(prefers-color-scheme: dark)").matches
     ? "dark"
     : "light";
 }
+
 const roleLabels = {
   production: "Production",
   tests: "Tests",
   generated: "Generated",
   other: "Other",
 };
+
 export default function App({
   snapshot,
   inputAnalysis,
@@ -67,21 +72,32 @@ export default function App({
   example?: boolean;
   analysisErrors?: string[];
 }) {
-  const validation = useMemo(
-    () =>
-      inputAnalysis
-        ? validateAnalysis(snapshot, inputAnalysis)
-        : { analysis: null, units: [], errors: [] },
-    [snapshot, inputAnalysis],
-  );
+  const validation = useMemo(() => {
+    if (!inputAnalysis) return { analysis: null, units: [], errors: [] };
+    const parsed = analysisSchema.safeParse(inputAnalysis);
+
+    return parsed.success
+      ? validateAnalysis(snapshot, parsed.data)
+      : {
+          analysis: null,
+          units: [],
+          errors: parsed.error.issues.map(
+            (i) => `${i.path.join(".")}: ${i.message}`,
+          ),
+        };
+  }, [snapshot, inputAnalysis]);
+
   const analysis = validation.analysis;
   const sourceUnits = useMemo(() => indexChanges(snapshot), [snapshot]);
   const units = analysis ? validation.units : sourceUnits;
+
   const stats = useMemo(
     () => statistics(snapshot, sourceUnits),
     [snapshot, sourceUnits],
   );
+
   const storageKey = `diffraction:feedback:${snapshot.id}`;
+
   const commentSchema = anchorSchema.and(
     z.object({
       id: z.string(),
@@ -89,13 +105,16 @@ export default function App({
       body: z.string().min(1),
     }),
   );
+
   function loadComments(): Comment[] {
     try {
       const result = z
         .array(commentSchema)
         .safeParse(JSON.parse(localStorage.getItem(storageKey) ?? "[]"));
+
       if (!result.success) return [];
       exportFeedback(snapshot, result.data);
+
       return result.data;
     } catch {
       return [];
@@ -105,6 +124,7 @@ export default function App({
   const [theme, setTheme] = useState(loadTheme);
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
+
     try {
       localStorage.setItem("diffraction:theme", theme);
     } catch {
@@ -131,6 +151,7 @@ export default function App({
   const scrollFrame = useRef(0);
   useEffect(() => {
     const cancel = () => cancelAnimationFrame(scrollFrame.current);
+
     const onKey = (event: KeyboardEvent) => {
       if (
         [
@@ -145,11 +166,13 @@ export default function App({
       )
         cancel();
     };
+
     mainScrollRef.current?.addEventListener("wheel", cancel, { passive: true });
     mainScrollRef.current?.addEventListener("touchstart", cancel, {
       passive: true,
     });
     window.addEventListener("keydown", onKey);
+
     return () => {
       cancel();
       mainScrollRef.current?.removeEventListener("wheel", cancel);
@@ -157,13 +180,17 @@ export default function App({
       window.removeEventListener("keydown", onKey);
     };
   }, []);
+
   function navigate(id: string) {
     cancelAnimationFrame(scrollFrame.current);
     const target = document.getElementById(`review-${id}`);
+
     if (!target) return;
     const container = mainScrollRef.current;
+
     if (!container) return;
     const start = container.scrollTop;
+
     const end =
       id === "overview"
         ? 0
@@ -177,11 +204,15 @@ export default function App({
               container.scrollHeight - container.clientHeight,
             ),
           );
+
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       container.scrollTo({ top: end, behavior: "instant" });
+
       return;
     }
+
     const started = performance.now();
+
     const step = (now: number) => {
       const progress = Math.min((now - started) / 300, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
@@ -189,14 +220,18 @@ export default function App({
         top: start + (end - start) * eased,
         behavior: "instant",
       });
+
       if (progress < 1) scrollFrame.current = requestAnimationFrame(step);
     };
+
     scrollFrame.current = requestAnimationFrame(step);
   }
+
   function commentAt(a: Anchor) {
     setAnchor(a);
     setDraft("");
   }
+
   function saveComment() {
     if (!anchor || !draft.trim()) return;
     setComments([
@@ -210,6 +245,7 @@ export default function App({
     ]);
     setAnchor(null);
   }
+
   async function copyFeedback() {
     try {
       await navigator.clipboard.writeText(exportFeedback(snapshot, comments));
@@ -218,16 +254,19 @@ export default function App({
       setCopyStatus("Clipboard unavailable. Use Download instead.");
     }
   }
+
   function download() {
     const url = URL.createObjectURL(
       new Blob([exportFeedback(snapshot, comments)], { type: "text/markdown" }),
     );
+
     const link = document.createElement("a");
     link.href = url;
     link.download = "diffraction-feedback.md";
     link.click();
     URL.revokeObjectURL(url);
   }
+
   return (
     <div className="min-h-screen md:flex md:h-screen md:overflow-hidden md:overscroll-none bg-mist-50 dark:bg-mist-900 bg-linear-to-br from-violet-500/3 via-transparent to-cyan-500/3 text-sm text-mist-800 dark:text-mist-200">
       <ReviewSidebar
@@ -407,6 +446,7 @@ export default function App({
             <div className="space-y-2">
               {analysis?.sections.map((s, i) => {
                 const owned = units.filter((u) => s.unitIds.includes(u.id));
+
                 return (
                   <button
                     key={s.id}
@@ -448,6 +488,7 @@ export default function App({
             const selected = section
               ? units.filter((unit) => section.unitIds.includes(unit.id))
               : units;
+
             const groups = [
               ...new Set(
                 section
@@ -459,11 +500,14 @@ export default function App({
               metadata: !section || section.metadataFileIds.includes(id),
               units: selected.filter((unit) => unit.fileId === id),
             }));
+
             const flags =
               analysis?.flags.filter(
                 (flag) => flag.sectionId === section?.id,
               ) ?? [];
+
             const id = section?.id ?? "files";
+
             return (
               <section
                 key={id}

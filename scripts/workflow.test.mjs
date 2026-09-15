@@ -13,11 +13,14 @@ import {
 import { indexChanges } from "../src/core/review";
 import { snapshotSchema } from "../src/core/snapshot";
 import { stringify } from "yaml";
+
 const dirs = [];
+
 afterEach(() => {
   for (const dir of dirs.splice(0))
     rmSync(dir, { recursive: true, force: true });
 });
+
 it("saves, validates, and reopens analysis without recapturing the repository", () => {
   const dir = mkdtempSync(join(tmpdir(), "diffraction-workflow-"));
   dirs.push(dir);
@@ -29,9 +32,11 @@ it("saves, validates, and reopens analysis without recapturing the repository", 
   const path = join(dir, "analysis.yaml");
   writeFileSync(path, stringify(analysis));
   expect(readAnalysis(loadCapture(dir), path).errors).toEqual([]);
+
   const output = execFileSync("node", ["scripts/cli.mjs", "validate", dir], {
     encoding: "utf8",
   });
+
   expect(output).toContain("2 groups, 2 flags");
   expect(
     execFileSync("node", ["scripts/cli.mjs", "inspect", dir, "--block", "B1"], {
@@ -43,6 +48,7 @@ it("saves, validates, and reopens analysis without recapturing the repository", 
   writeFileSync(join(dir, "capture.json"), JSON.stringify(saved));
   expect(() => loadCapture(dir)).toThrow("checksum");
 });
+
 it("keeps malformed analysis recoverable and refuses capture overwrites", () => {
   const dir = mkdtempSync(join(tmpdir(), "diffraction-workflow-"));
   dirs.push(dir);
@@ -57,11 +63,13 @@ it("keeps malformed analysis recoverable and refuses capture overwrites", () => 
 it("preserves saved block IDs, row mappings and units across reopening and browser parsing", () => {
   const dir = mkdtempSync(join(tmpdir(), "diffraction-workflow-"));
   dirs.push(dir);
+
   // Simulate a historical numbering scheme unlike the current generator.
   const blocks = inventory(snapshot).map((b) => ({
     ...b,
     id: `saved-${b.id}`,
   }));
+
   const captured = { ...snapshot, inventory: blocks };
   saveCapture(captured, dir);
   const reopened = snapshotSchema.parse(loadCapture(dir));
@@ -73,8 +81,10 @@ it("preserves saved block IDs, row mappings and units across reopening and brows
     readFileSync(join(dir, "diff.txt"), "utf8"),
   );
   const authored = structuredClone(analysis);
+
   for (const g of authored.groups)
     for (const c of g.changes) c.block = `saved-${c.block}`;
+
   for (const f of authored.flags) f.anchor.block = `saved-${f.anchor.block}`;
   expect(validateAnalysis(reopened, authored).errors).toEqual([]);
   const envelope = JSON.parse(readFileSync(join(dir, "capture.json"), "utf8"));
@@ -82,6 +92,7 @@ it("preserves saved block IDs, row mappings and units across reopening and brows
   writeFileSync(join(dir, "capture.json"), JSON.stringify(envelope));
   expect(() => loadCapture(dir)).toThrow("checksum");
 });
+
 it("rejects legacy captures instead of silently reinterpreting their references", () => {
   const dir = mkdtempSync(join(tmpdir(), "diffraction-workflow-"));
   dirs.push(dir);

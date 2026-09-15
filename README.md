@@ -89,7 +89,10 @@ Draft comments persist in this browser for the example snapshot. They are not se
 npm test          # Coverage validation, diff projection, and feedback anchors
 npm run build    # Type-check and produce dist/
 npm run preview  # Serve the example production build locally
-npm run format   # Format source and configuration
+npm run format   # Format with Oxfmt
+npm run format:check # Check formatting without writing
+npm run lint     # Oxlint with the vendored anti-slop rules
+npm run lint:fix # Apply available lint fixes
 ```
 
 The app uses React, TypeScript, Vite, Tailwind CSS 4, Pierre's diff components, and Zod. The first milestone establishes the review model and browser interactions. Local Git capture and basic file classification are implemented. The skill and saved-analysis workflow are implemented; exact move matching and broader agent evaluations remain future work. The example supplies its descriptions and file roles explicitly.
@@ -103,3 +106,11 @@ The app uses React, TypeScript, Vite, Tailwind CSS 4, Pierre's diff components, 
 ## License
 
 [MIT](LICENSE).
+
+## Code quality tooling
+
+Vite serves and builds the React app; TypeScript checks types and Vitest runs tests. Oxfmt handles formatting. Oxlint and `@oxlint/plugins` are pinned to matching versions; upgrade them together.
+
+[Anti-slop](https://github.com/dmmulroy/anti-slop) is vendored under `tools/oxlint/anti-slop/`, with provenance and licenses included. All generic rules are enabled. The adjacent `.mjs` adapter loads its TypeScript source on Node 22.12 using the existing `tsx` dependency. Vendored rules and installed agent directories are excluded from linting and formatting; the project's own `skills/` source remains checked.
+
+Run lint, format checks, tests, and the build before submitting changes.

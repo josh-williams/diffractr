@@ -17,17 +17,23 @@ export default function ReviewSidebar({
   const [page, setPage] = useState("overview");
   useEffect(() => {
     const scrollContainer = mainScrollRef.current;
+
     if (!scrollContainer) return;
+
     const parts = Array.from(
       scrollContainer.querySelectorAll<HTMLElement>("[data-review-part]"),
     );
+
     let frame = 0;
+
     const update = () => {
       frame = 0;
       let active: HTMLElement | undefined = parts[0];
+
       for (const part of parts) {
         if (part.getBoundingClientRect().top <= 120) active = part;
       }
+
       if (
         scrollContainer.scrollTop > 0 &&
         scrollContainer.scrollTop + scrollContainer.clientHeight >=
@@ -35,16 +41,20 @@ export default function ReviewSidebar({
       ) {
         active = parts.at(-1);
       }
+
       if (active) setPage(active.dataset.reviewPart!);
     };
+
     const schedule = () => {
       if (!frame) frame = requestAnimationFrame(update);
     };
+
     scrollContainer.addEventListener("scroll", schedule, { passive: true });
     window.addEventListener("resize", schedule);
     const observer = new ResizeObserver(schedule);
     observer.observe(scrollContainer);
     update();
+
     return () => {
       scrollContainer.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
@@ -52,6 +62,7 @@ export default function ReviewSidebar({
       cancelAnimationFrame(frame);
     };
   }, [mainScrollRef, analysis]);
+
   return (
     <aside className="border-b border-mist-200 dark:border-mist-800 bg-mist-100/80 dark:bg-mist-950/30 p-2 md:overflow-y-auto md:h-full md:min-h-0 md:shrink-0 md:w-60 md:border-r md:border-b-0">
       <Brand />
@@ -68,13 +79,16 @@ export default function ReviewSidebar({
         {analysis?.sections.map((s) => {
           const owned = units.filter((unit) => s.unitIds.includes(unit.id));
           const fileCount = s.fileIds.length;
+
           const lineCount = owned.reduce(
             (n, unit) => n + unit.newCount + unit.oldCount,
             0,
           );
+
           const flagCount = analysis.flags.filter(
             (flag) => flag.sectionId === s.id,
           ).length;
+
           return (
             <button
               key={s.id}

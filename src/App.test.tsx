@@ -2,6 +2,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { renderToString } from "react-dom/server";
 import App from "./App";
 import type { Snapshot } from "./core/review";
+
 const snapshot: Snapshot = {
   id: "local-snapshot",
   repository: "actual-repository",
@@ -36,10 +37,13 @@ const snapshot: Snapshot = {
     },
   ],
 };
+
 afterEach(() => vi.unstubAllGlobals());
+
 it("renders all metadata-only local files without example data or analysis errors", () => {
   vi.stubGlobal("window", { matchMedia: () => ({ matches: false }) });
   const html = renderToString(<App snapshot={snapshot} />);
+
   for (const text of [
     "actual-repository",
     "origin/trunk",
@@ -50,6 +54,7 @@ it("renders all metadata-only local files without example data or analysis error
     "100755",
   ])
     expect(html).toContain(text);
+
   for (const text of [
     "Team invitations",
     "Analysis unavailable",
@@ -57,6 +62,7 @@ it("renders all metadata-only local files without example data or analysis error
   ])
     expect(html).not.toContain(text);
 });
+
 it("renders a clean repository as an empty review", () => {
   vi.stubGlobal("window", { matchMedia: () => ({ matches: false }) });
   const html = renderToString(<App snapshot={{ ...snapshot, files: [] }} />);

@@ -30,6 +30,7 @@ interface Props {
   onFullFile: (file: SourceFile) => void;
   metadata?: boolean;
 }
+
 export default function DiffCard({
   file,
   units,
@@ -42,9 +43,11 @@ export default function DiffCard({
 }: Props) {
   const [collapsed, setCollapsed] = useState(file.role === "generated");
   const [selection, setSelection] = useState<SelectedLineRange | null>(null);
+
   const [expandedContext, setExpandedContext] = useState<
     Record<string, boolean>
   >({});
+
   const diffs = useMemo(
     () =>
       units.map((u) =>
@@ -55,22 +58,28 @@ export default function DiffCard({
       ),
     [file, units, allUnits, expandedContext],
   );
+
   const added = units.reduce((n, u) => n + u.newCount, 0),
     removed = units.reduce((n, u) => n + u.oldCount, 0);
+
   function selected(range: SelectedLineRange | null) {
     // A review comment always refers to one side of the diff.
     setSelection(
       range && (!range.endSide || range.side === range.endSide) ? range : null,
     );
   }
+
   const visible = (a: Anchor, index: number) => {
     const diff = diffs[index];
+
     return diff.hunks.some((h) => {
       const start = a.side === "additions" ? h.additionStart : h.deletionStart;
       const count = a.side === "additions" ? h.additionCount : h.deletionCount;
+
       return a.end >= start && a.end < start + count;
     });
   };
+
   return (
     <article className="mb-3 overflow-hidden rounded-lg border border-mist-200 bg-mist-950 text-mist-200 dark:border-mist-700">
       <header className="flex items-center gap-2 border-b border-mist-800 bg-mist-950 px-2 py-1.5 text-mist-200">
@@ -161,6 +170,7 @@ export default function DiffCard({
             const position = siblings.findIndex((u) => u.id === unit.id);
             const previous = siblings[position - 1];
             const next = siblings[position + 1];
+
             const beforeAvailable = unit.split
               ? 0
               : Math.min(
@@ -169,6 +179,7 @@ export default function DiffCard({
                   unit.newStart -
                     (previous ? previous.newStart + previous.newCount : 0),
                 );
+
             const afterAvailable = unit.split
               ? 0
               : Math.min(
@@ -179,6 +190,7 @@ export default function DiffCard({
                     unit.newStart -
                     unit.newCount,
                 );
+
             const contextButton = (
               side: "before" | "after",
               available: number,
@@ -186,6 +198,7 @@ export default function DiffCard({
               const hidden = expandedContext[`${unit.id}:${side}`]
                 ? 0
                 : Math.max(0, available - 3);
+
               return hidden > 0 ? (
                 <button
                   className="block w-full border-y border-mist-800 bg-mist-900 px-3 py-1.5 text-left font-sans text-xs text-mist-400 hover:bg-mist-800 hover:text-mist-100"
@@ -201,6 +214,7 @@ export default function DiffCard({
                 </button>
               ) : null;
             };
+
             const annotations: DiffLineAnnotation<Flag | Comment>[] = [
               ...flags
                 .filter((f) => f.anchor && visible(f.anchor, index))
@@ -213,6 +227,7 @@ export default function DiffCard({
                 .filter((c) => visible(c, index))
                 .map((c) => ({ side: c.side, lineNumber: c.end, metadata: c })),
             ];
+
             return (
               <Fragment key={unit.id}>
                 {contextButton("before", beforeAvailable)}

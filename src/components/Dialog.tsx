@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
+
 export default function Dialog({
   title,
   onClose,
@@ -15,8 +16,10 @@ export default function Dialog({
   useEffect(() => {
     const dialog = ref.current!;
     dialog.showModal();
+
     return () => dialog.close();
   }, []);
+
   return (
     <dialog
       ref={ref}
