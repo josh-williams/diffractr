@@ -1,9 +1,11 @@
 import DiffHeader from "./DiffHeader";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useState, type CSSProperties } from "react";
 import { FileDiff } from "@pierre/diffs/react";
 import type { DiffLineAnnotation, SelectedLineRange } from "@pierre/diffs";
 import { Flag as FlagIcon, MessageSquare } from "lucide-react";
 import Markdown from "./Markdown";
+import { ChevronsUpDown, ChevronUp, ChevronDown } from "lucide-react";
+import { contextLayout } from "../core/context";
 import {
   unitDiff,
   lines,
@@ -42,16 +44,28 @@ export default function DiffCard({
     Record<string, boolean>
   >({});
 
-  const diffs = useMemo(
-    () =>
-      units.map((u) =>
-        unitDiff(file, u, allUnits, {
-          before: expandedContext[`${u.id}:before`] ? Infinity : 3,
-          after: expandedContext[`${u.id}:after`] ? Infinity : 3,
-        }),
-      ),
+  const context = useMemo(
+    () => contextLayout(file, units, allUnits, expandedContext),
     [file, units, allUnits, expandedContext],
   );
+
+  const diffs = useMemo(
+    () =>
+      units.map((unit, index) =>
+        unitDiff(file, unit, allUnits, context[index]),
+      ),
+    [file, units, allUnits, context],
+  );
+
+  const numberWidth = `${Math.max(
+    2,
+    String(Math.max(lines(file.before).length, lines(file.after).length))
+      .length,
+  )}ch`;
+
+  const gutterStyle: CSSProperties & {
+    "--diffs-min-number-column-width": string;
+  } = { "--diffs-min-number-column-width": numberWidth };
 
   const added = units.reduce((n, u) => n + u.newCount, 0),
     removed = units.reduce((n, u) => n + u.oldCount, 0);
@@ -75,7 +89,10 @@ export default function DiffCard({
   };
 
   return (
-    <article className="mb-3 overflow-hidden rounded-lg border border-mist-200 bg-mist-950 text-mist-200 dark:border-mist-700">
+    <article
+      className="mb-3 overflow-hidden rounded-lg border border-mist-200 bg-mist-950 text-mist-200 dark:border-mist-700"
+      style={gutterStyle}
+    >
       <DiffHeader
         file={file}
         collapsed={collapsed}
@@ -113,51 +130,34 @@ export default function DiffCard({
         <>
           {diffs.map((diff, index) => {
             const unit = units[index];
-            const siblings = allUnits.filter((u) => u.fileId === file.id);
-            const position = siblings.findIndex((u) => u.id === unit.id);
-            const previous = siblings[position - 1];
-            const next = siblings[position + 1];
-
-            const beforeAvailable = unit.split
-              ? 0
-              : Math.min(
-                  unit.oldStart -
-                    (previous ? previous.oldStart + previous.oldCount : 0),
-                  unit.newStart -
-                    (previous ? previous.newStart + previous.newCount : 0),
-                );
-
-            const afterAvailable = unit.split
-              ? 0
-              : Math.min(
-                  (next?.oldStart ?? lines(file.before).length) -
-                    unit.oldStart -
-                    unit.oldCount,
-                  (next?.newStart ?? lines(file.after).length) -
-                    unit.newStart -
-                    unit.newCount,
-                );
 
             const contextButton = (
-              side: "before" | "after",
-              available: number,
+              gap: (typeof context)[number]["beforeGap"],
             ) => {
-              const hidden = expandedContext[`${unit.id}:${side}`]
-                ? 0
-                : Math.max(0, available - 3);
+              const Icon =
+                gap.direction === "both"
+                  ? ChevronsUpDown
+                  : gap.direction === "before"
+                    ? ChevronUp
+                    : ChevronDown;
 
-              return hidden > 0 ? (
+              return gap.hidden > 0 ? (
                 <button
-                  className="block w-full border-y border-mist-800 bg-mist-900 px-3 py-1.5 text-left font-sans text-xs text-mist-400 hover:bg-mist-800 hover:text-mist-100"
+                  className="diff-context-separator"
                   onClick={() =>
                     setExpandedContext((current) => ({
                       ...current,
-                      [`${unit.id}:${side}`]: true,
+                      [gap.key]: true,
                     }))
                   }
-                  aria-label={`Expand ${hidden} unmodified lines ${side} change in ${file.path}`}
+                  aria-label={`Expand ${gap.hidden} unmodified lines in ${file.path}`}
                 >
-                  {hidden} unmodified lines · expand
+                  <span className="diff-context-icon" aria-hidden="true">
+                    <Icon size={14} />
+                  </span>
+                  <span className="diff-context-label">
+                    {gap.hidden} unmodified lines
+                  </span>
                 </button>
               ) : null;
             };
@@ -177,7 +177,7 @@ export default function DiffCard({
 
             return (
               <Fragment key={unit.id}>
-                {contextButton("before", beforeAvailable)}
+                {contextButton(context[index].beforeGap)}
                 <FileDiff<Flag | Comment>
                   key={units[index].id}
                   fileDiff={diff}
@@ -221,7 +221,7 @@ export default function DiffCard({
                     )
                   }
                 />
-                {contextButton("after", afterAvailable)}
+                {contextButton(context[index].afterGap)}
               </Fragment>
             );
           })}

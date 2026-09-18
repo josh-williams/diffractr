@@ -18,7 +18,7 @@ The Codex skill runs within the user's existing agent session. The agent can ins
 
 Deleted and added rows may be selected together even when nonadjacent in the displayed block. Selections within each group are combined, then converted to contiguous old/new runs for diff rendering. Full blocks preserve expandable context bounded by the original source blocks. Split fragments currently render with zero context so another group's edits cannot leak into the projection; complete-file view remains available. Groups describe changes, not independently applicable commits.
 
-Flags use the same selectors. All selected changed rows must have one owner, which determines the flag's group. Text flags render at the end of the last selected new-side run, or old-side run for deletions. Whole-change flags render in the file card. Reviewer comments can target unchanged context too.
+Flags use the same selectors. All selected changed rows must have one owner, which determines the flag's group. Text flags render at the end of the last selected new-side run, or old-side run for deletions. Whole-change flags render in the file card. Reviewer comments can target unchanged context too. Adjacent full blocks in a file card share one collapsed-context separator; its count excludes context already visible on either side, and expansion displays each unchanged line once.
 
 Global counts derive from source changes, not repeated file appearances or displayed context. Group file counts include metadata-only files. Metadata changes have no text-line count.
 
