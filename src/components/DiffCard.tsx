@@ -1,5 +1,5 @@
 import DiffHeader from "./DiffHeader";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useState, type CSSProperties } from "react";
 import { FileDiff } from "@pierre/diffs/react";
 import type { DiffLineAnnotation, SelectedLineRange } from "@pierre/diffs";
 import { Flag as FlagIcon, MessageSquare } from "lucide-react";
@@ -8,6 +8,7 @@ import { ChevronsUpDown, ChevronUp, ChevronDown } from "lucide-react";
 import { contextLayout } from "../core/context";
 import {
   unitDiff,
+  lines,
   type Anchor,
   type ChangeUnit,
   type Comment,
@@ -56,6 +57,16 @@ export default function DiffCard({
     [file, units, allUnits, context],
   );
 
+  const numberWidth = `${Math.max(
+    2,
+    String(Math.max(lines(file.before).length, lines(file.after).length))
+      .length,
+  )}ch`;
+
+  const gutterStyle: CSSProperties & {
+    "--diffs-min-number-column-width": string;
+  } = { "--diffs-min-number-column-width": numberWidth };
+
   const added = units.reduce((n, u) => n + u.newCount, 0),
     removed = units.reduce((n, u) => n + u.oldCount, 0);
 
@@ -78,7 +89,10 @@ export default function DiffCard({
   };
 
   return (
-    <article className="mb-3 overflow-hidden rounded-lg border border-mist-200 bg-mist-950 text-mist-200 dark:border-mist-700">
+    <article
+      className="mb-3 overflow-hidden rounded-lg border border-mist-200 bg-mist-950 text-mist-200 dark:border-mist-700"
+      style={gutterStyle}
+    >
       <DiffHeader
         file={file}
         collapsed={collapsed}
@@ -129,7 +143,7 @@ export default function DiffCard({
 
               return gap.hidden > 0 ? (
                 <button
-                  className="flex w-full items-center border-y border-mist-800 bg-mist-900 text-left font-sans text-xs text-mist-400 hover:bg-mist-800 hover:text-mist-100 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-mist-300"
+                  className="diff-context-separator"
                   onClick={() =>
                     setExpandedContext((current) => ({
                       ...current,
@@ -138,13 +152,12 @@ export default function DiffCard({
                   }
                   aria-label={`Expand ${gap.hidden} unmodified lines in ${file.path}`}
                 >
-                  <span
-                    className="flex w-16 shrink-0 justify-center border-r border-mist-800 py-1.5"
-                    aria-hidden="true"
-                  >
+                  <span className="diff-context-icon" aria-hidden="true">
                     <Icon size={14} />
                   </span>
-                  <span className="px-3">{gap.hidden} unmodified lines</span>
+                  <span className="diff-context-label">
+                    {gap.hidden} unmodified lines
+                  </span>
                 </button>
               ) : null;
             };
