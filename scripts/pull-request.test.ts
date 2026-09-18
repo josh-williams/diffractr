@@ -10,14 +10,14 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, delimiter } from "node:path";
-import { capturePullRequest, parsePullRequestUrl } from "./pull-request.mjs";
+import { capturePullRequest, parsePullRequestUrl } from "./pull-request.ts";
 import { exportFeedback } from "../src/core/review.ts";
-import { captureCommits } from "./capture.mjs";
+import { captureCommits } from "./capture.ts";
 import { saveCapture, loadCapture } from "./workflow.ts";
 
-const roots = [];
+const roots: string[] = [];
 
-const git = (root, ...args) =>
+const git = (root: string, ...args: string[]): string =>
   execFileSync("git", args, {
     cwd: root,
     encoding: "utf8",
@@ -128,7 +128,7 @@ it("captures fork head against the merge base, persists metadata, and reopens wi
     result.snapshot.files.find((file) => file.path === "file.txt"),
   ).toMatchObject({ before: "before\n", after: "after\n" });
   expect(
-    result.snapshot.files.find((file) => file.path === "image.png").notice,
+    result.snapshot.files.find((file) => file.path === "image.png")?.notice,
   ).toBe("Binary content");
   const feedback = exportFeedback(result.snapshot, []);
   expect(feedback).toContain("https://github.com/example/repo/pull/7");

@@ -1,13 +1,13 @@
-import { validateAnalysis } from "./analysis";
+import { validateAnalysis } from "./analysis.ts";
 import { describe, expect, it } from "vitest";
-import { analysis, snapshot } from "../examples/invitations";
+import { analysis, snapshot } from "../examples/invitations.ts";
 import {
   exportFeedback,
   indexChanges,
   statistics,
   unitDiff,
   type Snapshot,
-} from "./review";
+} from "./review.ts";
 
 function sample(before: string | null, after: string | null): Snapshot {
   return {

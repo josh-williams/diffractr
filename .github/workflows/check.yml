@@ -40,13 +40,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: ["22.12.0", "24"]
+        include:
+          - node: "22.12.0"
+            typescript-flags: "--experimental-strip-types"
+          - node: "24"
+            typescript-flags: ""
     name: Test package / Node ${{ matrix.node }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ matrix.node }}
+      - run: npm ci
       - uses: actions/download-artifact@v8
         with:
           name: package
@@ -56,4 +61,4 @@ jobs:
         run: |
           packages=("$RUNNER_TEMP"/package/diffractr-*.tgz)
           test "${#packages[@]}" -eq 1
-          node scripts/test-package.mjs "${packages[0]}"
+          node ${{ matrix.typescript-flags }} scripts/test-package.ts "${packages[0]}"

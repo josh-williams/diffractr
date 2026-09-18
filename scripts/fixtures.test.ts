@@ -20,8 +20,8 @@ it.each([
 
     expect(snapshot.files).toHaveLength(files);
     expect(result.errors).toEqual([]);
-    expect(result.analysis.sections).toHaveLength(groups);
-    expect(result.analysis.flags).toHaveLength(flags);
+    expect(result.analysis?.sections).toHaveLength(groups);
+    expect(result.analysis?.flags).toHaveLength(flags);
     expect(statistics(snapshot, result.units)).toEqual(statistics(snapshot));
     expect(inventoryText(snapshot)).toBe(
       readFileSync(join(dir, "diff.txt"), "utf8"),
@@ -50,7 +50,7 @@ it("preserves split fixture source coordinates, content, and flag ownership", ()
     "  retries: 1,\n",
   ]);
   expect(patches.map((patch) => patch.hunks[0].additionStart)).toEqual([2, 3]);
-  expect(result.analysis.flags[0]).toMatchObject({
+  expect(result.analysis?.flags[0]).toMatchObject({
     sectionId: "group-2",
     anchor: { side: "additions", start: 3, end: 3 },
   });
@@ -61,12 +61,12 @@ it("preserves metadata-only ownership without inventing changed lines", () => {
   const snapshot = loadCapture(dir);
   const result = readAnalysis(snapshot, join(dir, "analysis.yaml"));
 
-  expect(snapshot.inventory.map((block) => block.kind)).toEqual([
+  expect(snapshot.inventory?.map((block) => block.kind)).toEqual([
     "metadata",
     "metadata",
     "metadata",
   ]);
-  expect(result.analysis.flags[0].anchor).toBeUndefined();
+  expect(result.analysis?.flags[0].anchor).toBeUndefined();
   expect(
     statistics(snapshot).every(
       (row) => row.additions === 0 && row.deletions === 0,

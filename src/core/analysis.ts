@@ -7,7 +7,7 @@ import {
   type ChangeUnit,
   type Analysis,
   type Anchor,
-} from "./review";
+} from "./review.ts";
 
 export interface BlockRow {
   n: number;

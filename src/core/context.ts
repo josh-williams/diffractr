@@ -1,4 +1,4 @@
-import { lines, type ChangeUnit, type SourceFile } from "./review";
+import { lines, type ChangeUnit, type SourceFile } from "./review.ts";
 
 interface Gap {
   key: string;

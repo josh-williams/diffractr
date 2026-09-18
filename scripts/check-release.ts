@@ -1,9 +1,21 @@
+import { z } from "zod";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-const manifest = JSON.parse(readFileSync("package.json", "utf8"));
+const manifest = z
+  .object({
+    name: z.string(),
+    version: z.string(),
+    private: z.boolean().optional(),
+  })
+  .parse(JSON.parse(readFileSync("package.json", "utf8")));
 
-const lock = JSON.parse(readFileSync("package-lock.json", "utf8"));
+const lock = z
+  .object({
+    version: z.string(),
+    packages: z.object({ "": z.object({ version: z.string() }) }),
+  })
+  .parse(JSON.parse(readFileSync("package-lock.json", "utf8")));
 
 const tag = process.argv[2] ?? process.env.RELEASE_TAG;
 
