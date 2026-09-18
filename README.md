@@ -2,7 +2,7 @@
 
 diffractr helps developers understand and review large code changes through behavior-based sections, concise explanations, and annotations anchored to the code.
 
-The initial workflow focuses on local self-review of coding-agent output, using Codex to organize and explain changes. GitHub PR review and cloud hosting are planned follow-ups.
+The initial workflow focuses on local self-review of coding-agent output, using Codex to organize and explain changes. GitHub PR input is supported locally; posting GitHub reviews and cloud hosting are planned follow-ups.
 
 ## Install and review
 
@@ -26,6 +26,22 @@ diffractr --help
 `install-skill` installs the [skill](skills/diffractr/SKILL.md) to `~/.agents/skills/diffractr`, including its own compiled runtime and viewer. New Codex sessions can use `$diffractr` to review local changes. The installed skill works even if the original package or npx cache is removed. No symlink or API key is needed.
 
 Use `install-skill --dest /custom/path/diffractr` for a different destination. Existing destinations are never overwritten. To upgrade, remove the previous skill installation and run the command from the desired package version again. Renaming does not remove an older separately installed skill.
+
+### Review a GitHub PR
+
+Give the skill a full GitHub PR URL, or capture it directly:
+
+```sh
+diffractr capture --pr https://github.com/OWNER/REPO/pull/123
+```
+
+Requires GitHub CLI (`gh`) authenticated with repository access (`gh auth login`). Public, private, and fork PRs use the base repository's PR head ref. GitHub.com URLs are supported; Enterprise hosts are not supported yet.
+
+The command creates a new temporary review directory containing `capture.json`, `diff.txt`, `analysis.yaml`, and an isolated `checkout/` at the captured head. Use `--out /path/to/new-review` to choose a new directory; existing directories are refused. The checkout stays available for agent inspection until you remove the review directory. It includes fetched history and can take time and disk space for large repositories. Dependencies, submodules, and Git LFS contents are not installed or fetched.
+
+Source is read directly from Git objects between the captured merge base and head, independently of checkout transformations or edits. The exact base, head, and merge-base commits and PR details are saved. If the PR head changes while fetching, capture fails and asks you to retry. Later pushes require a fresh capture. Closed and merged PRs use the base/head revisions currently reported by GitHub, not a reconstruction of their historical pre-merge state.
+
+Author `analysis.yaml`, then use the same `validate` and `open` commands below. Reopening needs neither GitHub nor the checkout. The viewer shows the PR link and captured commits. Feedback remains local and can be exported; nothing is posted to GitHub.
 
 ### CLI workflow
 

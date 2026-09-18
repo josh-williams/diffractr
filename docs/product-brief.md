@@ -80,3 +80,7 @@ V1 uses a Codex skill plus a local CLI. The existing agent captures changes, inv
 Analysis contains ordered groups with titles, Markdown descriptions, and tool-generated block references. Omitting `rows` selects a whole block; quoted selectors such as `"5-28, 32"` select block-local rows. Changed rows have exactly one owner; context does not acquire ownership. Non-text changes have whole-change blocks. The application derives navigation IDs and flag ownership. Flags contain Markdown `text` and block/row anchors, with no title or authored group ID. Descriptions may contain Mermaid fences.
 
 Flags surface consequential, non-obvious details, including possible defects encountered while understanding the change. The agent is not tasked with a separate defect hunt or a quota of findings. Invalid analysis remains repairable through CLI validation, and the viewer retains the complete diff.
+
+## GitHub PR input
+
+The local skill and CLI accept a GitHub.com pull-request URL using the user's existing GitHub CLI authentication. Capture uses an isolated checkout for agent inspection and immutable merge-base-to-head Git objects for source facts. Saved reviews show the PR title, link, and exact revisions, and remain readable offline. Public, private, and fork PRs are supported where the account has access. Posting feedback to GitHub and cloud execution remain separate follow-ups.
