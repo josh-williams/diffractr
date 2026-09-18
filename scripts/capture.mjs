@@ -394,3 +394,78 @@ export function capture(repository, { base, afterRead } = {}) {
     "Repository changed during capture. Stop edits briefly and run the command again.",
   );
 }
+
+// PR snapshots read Git objects, independent of checkout filters or later edits.
+export function captureCommits(root, base, head) {
+  const mergeBases = git(root, ["merge-base", "--all", base, head])
+    .toString()
+    .trim()
+    .split("\n");
+
+  if (mergeBases.length !== 1 || !mergeBases[0])
+    throw new Error("PR comparison requires a single merge base.");
+  const mergeBase = mergeBases[0];
+
+  function tree(ref) {
+    return new Map(
+      decode(git(root, ["ls-tree", "-rz", "--full-tree", ref]))
+        .split("\0")
+        .filter(Boolean)
+        .map((entry) => {
+          const tab = entry.indexOf("\t");
+          const [mode, , oid] = entry.slice(0, tab).split(" ");
+
+          return [entry.slice(tab + 1), { mode, oid }];
+        }),
+    );
+  }
+
+  function content(entry) {
+    if (!entry) return {};
+
+    if (entry.mode === "160000")
+      return { reason: "Submodule change; nested repository is not captured" };
+
+    if (entry.mode === "120000")
+      return { reason: "Symbolic link; target is not read" };
+
+    if (
+      Number(git(root, ["cat-file", "-s", entry.oid]).toString()) >
+      MAX_FILE_BYTES
+    )
+      return { reason: "File exceeds the 2 MiB text limit" };
+
+    return textContent(git(root, ["cat-file", "blob", entry.oid]));
+  }
+
+  const beforeTree = tree(mergeBase);
+  const afterTree = tree(head);
+  const files = [];
+
+  for (const path of [
+    ...new Set([...beforeTree.keys(), ...afterTree.keys()]),
+  ].sort()) {
+    const old = beforeTree.get(path);
+    const next = afterTree.get(path);
+
+    if (old?.oid === next?.oid && old?.mode === next?.mode) continue;
+    const before = content(old);
+    const after = content(next);
+    const notice = before.reason || after.reason;
+
+    const file = {
+      id: hash(path).slice(0, 24),
+      path,
+      before: notice ? null : (before.text ?? null),
+      after: notice ? null : (after.text ?? null),
+      role: classify(path, after.text ?? before.text),
+      oldMode: old?.mode ?? null,
+      newMode: next?.mode ?? null,
+    };
+
+    if (notice) file.notice = notice;
+    files.push(file);
+  }
+
+  return { mergeBase, baseCommit: base, head, files };
+}

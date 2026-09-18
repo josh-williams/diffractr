@@ -48,6 +48,7 @@ export default function ReviewOverview({
     >
       <h1>
         {analysis?.title ??
+          snapshot.pullRequest?.title ??
           (snapshot.files.length ? "Local changes" : "No local changes")}
       </h1>
       <div className="mt-2 max-w-5xl leading-6 text-mist-600 dark:text-mist-400">

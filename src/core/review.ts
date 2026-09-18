@@ -25,6 +25,8 @@ export interface Snapshot {
   mergeBase?: string;
   head?: string;
   capturedAt?: string;
+  baseCommit?: string;
+  pullRequest?: { url: string; number: number; title: string };
 }
 
 export interface ChangeUnit {
@@ -249,7 +251,7 @@ export function exportFeedback(
   snapshot: Snapshot,
   comments: Comment[],
 ): string {
-  const header = `# diffractr review feedback\n\nRepository: ${snapshot.repository}\nBranch: ${snapshot.branch}\nBase: ${snapshot.base}\n${snapshot.mergeBase ? `Merge base: ${snapshot.mergeBase}\n` : ""}Snapshot: ${snapshot.id}\n\nCheck the current code against this snapshot before applying feedback.\n`;
+  const header = `# diffractr review feedback\n\nRepository: ${snapshot.repository}\nBranch: ${snapshot.branch}\nBase: ${snapshot.base}\n${snapshot.mergeBase ? `Merge base: ${snapshot.mergeBase}\n` : ""}${snapshot.pullRequest ? `Pull request: ${snapshot.pullRequest.url}\nHead: ${snapshot.head}\nBase commit: ${snapshot.baseCommit}\n` : ""}Snapshot: ${snapshot.id}\n\nCheck the current code against this snapshot before applying feedback.\n`;
 
   return (
     header +

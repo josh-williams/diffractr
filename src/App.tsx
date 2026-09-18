@@ -137,7 +137,11 @@ export default function App({
                   : `Snapshot ${snapshot.id.slice(0, 12)}`
               }
             >
-              {example ? "Example" : "Local snapshot"}
+              {example
+                ? "Example"
+                : snapshot.pullRequest
+                  ? "PR snapshot"
+                  : "Local snapshot"}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -190,8 +194,29 @@ export default function App({
             <span className="text-mist-400 dark:text-mist-500">←</span>
             <span title={snapshot.mergeBase}>{snapshot.base}</span>
             <span className="rounded bg-mist-200 dark:bg-mist-800 px-1.5 py-0.5 font-sans text-mist-600 dark:text-mist-400">
-              Local changes
+              {snapshot.pullRequest ? "GitHub PR" : "Local changes"}
             </span>
+            {snapshot.pullRequest && (
+              <>
+                <a
+                  className="text-mist-800 underline dark:text-mist-200"
+                  href={snapshot.pullRequest.url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  #{snapshot.pullRequest.number} {snapshot.pullRequest.title}
+                </a>
+                <span title={snapshot.head}>
+                  Head {snapshot.head?.slice(0, 12)}
+                </span>
+                <span title={snapshot.baseCommit}>
+                  Base {snapshot.baseCommit?.slice(0, 12)}
+                </span>
+                <span title={snapshot.mergeBase}>
+                  Merge base {snapshot.mergeBase?.slice(0, 12)}
+                </span>
+              </>
+            )}
           </div>
           <ReviewOverview
             snapshot={snapshot}

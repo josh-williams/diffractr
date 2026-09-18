@@ -69,3 +69,31 @@ it("renders a clean repository as an empty review", () => {
   expect(html).toContain("No local changes");
   expect(html).not.toContain("Analysis unavailable");
 });
+
+it("shows PR identity and pinned revisions without labeling it as local changes", () => {
+  vi.stubGlobal("window", { matchMedia: () => ({ matches: false }) });
+
+  const html = renderToString(
+    <App
+      snapshot={{
+        ...snapshot,
+        head: "a".repeat(40),
+        baseCommit: "b".repeat(40),
+        mergeBase: "c".repeat(40),
+        pullRequest: {
+          url: "https://github.com/example/repo/pull/7",
+          number: 7,
+          title: "Update startup assets",
+        },
+      }}
+    />,
+  );
+
+  expect(html).toContain("https://github.com/example/repo/pull/7");
+  expect(html).toContain("Update startup assets");
+  expect(html).toContain("aaaaaaaaaaaa");
+  expect(html).toContain("bbbbbbbbbbbb");
+  expect(html).toContain("cccccccccccc");
+  expect(html).toContain("PR snapshot");
+  expect(html).not.toContain("Local changes");
+});

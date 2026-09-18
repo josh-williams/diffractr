@@ -64,6 +64,10 @@ Tests use temporary Git repositories to exercise capture integrity, worktrees, m
 
 The bundled Codex skill uses the existing agent session and its tools. It writes analysis against the saved capture and uses validation errors for repair. It does not launch another agent.
 
+## GitHub PR input
+
+`capture --pr URL` uses GitHub CLI authentication, fetches exact base and PR head revisions into a new isolated checkout, and captures merge-base-to-head Git objects. It persists PR identity and revisions with the authoritative inventory. The checkout remains beside the capture for agent inspection; reopening the viewer needs only saved artifacts. A moving head fails capture rather than silently reviewing a different revision. This first PR slice keeps feedback local; native GitHub review submission remains future work.
+
 ## Next implementation step
 
 Evaluate the skill on larger real changes, comparing grouping quality, first-pass coverage, and repair effort. Verify interactive rendering and feedback for saved reviews, including Mermaid errors and split fragments. Exact move matching, rename presentation, richer split-fragment context, and handling checkout transformations remain follow-ups.

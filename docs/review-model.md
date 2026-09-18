@@ -42,3 +42,7 @@ Markdown is rendered without raw HTML. Mermaid is lazy-loaded with strict securi
 ## Validation
 
 Tests exercise mixed Git states, worktrees, snapshots, checksum failures, YAML parsing, compact selectors, full coverage, adjacent/disjoint projections, metadata ownership, flag derivation, and feedback export. CLI tests run the real entry point against saved captures. UI rendering tests cover empty and metadata-only reviews. The skill's helper is exercised and its frontmatter checked separately. Interactive browser verification remains distinct from these automated checks.
+
+## Pull-request snapshots
+
+Version-2 captures may include `baseCommit` and `pullRequest` (`url`, `number`, `title`), alongside `head` and `mergeBase`. Older local captures remain valid without these fields. PR source comes directly from committed Git objects; the adjacent checkout is only inspection context. The snapshot identity binds the repository, revisions, source, and PR metadata. Analysis and ownership use the same inventory and validation as local captures.

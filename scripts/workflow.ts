@@ -1,3 +1,4 @@
+import { capturePullRequest } from "./pull-request.mjs";
 import { installSkill } from "./install-skill";
 import { z } from "zod";
 import { createHash } from "node:crypto";
@@ -79,7 +80,7 @@ export function saveCapture(snapshot: Snapshot, directory: string) {
     stringify({
       version: 1,
       snapshotId: snapshot.id,
-      title: "Local changes",
+      title: snapshot.pullRequest?.title ?? "Local changes",
       description: "",
       groups: [],
       flags: [],
@@ -138,7 +139,7 @@ export async function main(args: string[]) {
 
   if (!command || command === "--help" || rest.includes("--help")) {
     console.log(
-      `Usage: diffractr <command>\n\n  install-skill [--dest DIRECTORY]\n  capture [--repo PATH] [--base REF] [--out DIRECTORY]\n  inspect DIRECTORY [--block B7]\n  validate DIRECTORY [--analysis FILE]\n  open DIRECTORY [--analysis FILE] [--port 5174]\n\nCapture writes an immutable capture.json, numbered diff.txt, and analysis.yaml template.\nEdit analysis.yaml, validate it, then open the saved review. No Git writes or agent calls.`,
+      `Usage: diffractr <command>\n\n  install-skill [--dest DIRECTORY]\n  capture [--repo PATH] [--base REF] [--out DIRECTORY]\n  capture --pr URL [--out DIRECTORY]\n  inspect DIRECTORY [--block B7]\n  validate DIRECTORY [--analysis FILE]\n  open DIRECTORY [--analysis FILE] [--port 5174]\n\nCapture writes an immutable capture.json, numbered diff.txt, and analysis.yaml template.\nEdit analysis.yaml, validate it, then open the saved review. No Git writes or agent calls.`,
     );
 
     return;
@@ -157,7 +158,7 @@ export async function main(args: string[]) {
     throw new Error(`${command} requires a capture directory`);
 
   const allowed = {
-    capture: ["--repo", "--base", "--out"],
+    capture: ["--repo", "--base", "--out", "--pr"],
     inspect: ["--block"],
     validate: ["--analysis"],
     open: ["--analysis", "--port"],
@@ -178,6 +179,18 @@ export async function main(args: string[]) {
   }
 
   if (command === "capture") {
+    if (options["--pr"]) {
+      if (options["--repo"] || options["--base"])
+        throw new Error("--pr cannot be combined with --repo or --base.");
+      const captured = capturePullRequest(options["--pr"], options["--out"]);
+      saveCapture(snapshotSchema.parse(captured.snapshot), captured.directory);
+      console.log(
+        `Captured PR ${captured.snapshot.pullRequest.url} at ${captured.snapshot.head}.\n${captured.directory}\nCheckout for inspection: ${captured.checkout}\nRead diff.txt and edit analysis.yaml in the capture directory.`,
+      );
+
+      return;
+    }
+
     const snapshot = snapshotSchema.parse(
       capture(resolve(options["--repo"] ?? process.cwd()), {
         base: options["--base"],

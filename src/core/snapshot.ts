@@ -37,6 +37,18 @@ export const snapshotSchema = z.object({
   mergeBase: z.string().optional(),
   head: z.string().optional(),
   capturedAt: z.string().optional(),
+  baseCommit: z.string().optional(),
+  pullRequest: z
+    .object({
+      url: z
+        .string()
+        .regex(
+          /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/pull\/[1-9][0-9]*$/,
+        ),
+      number: z.number().int().positive(),
+      title: z.string(),
+    })
+    .optional(),
   files: z.array(
     z.object({
       id: z.string().min(1),
