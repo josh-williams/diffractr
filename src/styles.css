@@ -240,3 +240,18 @@
     }
   }
 }
+
+/* Share Pierre's number width, mono metrics, padding, and gutter divider. */
+.diff-context-separator {
+  @apply flex w-full items-center bg-mist-900 text-left font-sans text-xs text-mist-400;
+  @apply focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-mist-300;
+}
+
+.diff-context-icon {
+  @apply flex shrink-0 justify-center border-r-2 border-mist-950 py-1.5 font-mono hover:text-mist-100;
+  width: calc(var(--diffs-min-number-column-width) + 3ch + 2px);
+}
+
+.diff-context-label {
+  @apply px-2 hover:underline;
+}
