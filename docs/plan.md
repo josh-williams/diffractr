@@ -1,6 +1,6 @@
 # diffractr: implementation plan
 
-Status: working plan, updated 2026-09-15. Build a dedicated application for local self-review, with Codex as the only V1 agent integration and MIT licensing. Milestone 1 is implemented as a runnable example prototype. Local capture, block-based analysis validation, organized browser review, and a bundled Codex skill are implemented. Broader agent evaluation remains.
+Status: working plan, updated 2026-09-18. Build a dedicated application for local self-review, with Codex as the only V1 agent integration and MIT licensing. Milestone 1 is implemented as a runnable example prototype. Local capture, block-based analysis validation, organized browser review, and a bundled Codex skill are implemented. Broader agent evaluation remains.
 
 ## Development workflow
 
@@ -29,7 +29,7 @@ Use the [section model and layout](product-brief.md#confirmed-section-model-and-
 
 ## Later work
 
-Design progress tracking and revision reconciliation after the core review model is established. GitHub PR review and cloud hosting are future milestones after the local workflow. Cloud deployment details and automatic review triggers will be designed when that milestone approaches. Additional agent integrations, live Q&A, and manual regrouping remain deferred. Progress tracking's place in the sequence will be decided later.
+Design progress tracking and revision reconciliation after the core review model is established. GitHub PR capture and draft review submission extend the local workflow. Cloud hosting remains a future milestone. Cloud deployment details and automatic review triggers will be designed when that milestone approaches. Additional agent integrations, live Q&A, and manual regrouping remain deferred. Progress tracking's place in the sequence will be decided later.
 
 ## Established architectural decisions
 
@@ -66,7 +66,7 @@ The bundled Codex skill uses the existing agent session and its tools. It writes
 
 ## GitHub PR input
 
-`capture --pr URL` uses GitHub CLI authentication, fetches exact base and PR head revisions into a new isolated checkout, and captures merge-base-to-head Git objects. It persists PR identity and revisions with the authoritative inventory. The checkout remains beside the capture for agent inspection; reopening the viewer needs only saved artifacts. A moving head fails capture rather than silently reviewing a different revision. This first PR slice keeps feedback local; native GitHub review submission remains future work.
+`capture --pr URL` uses GitHub CLI authentication, fetches exact base and PR head revisions into a new isolated checkout, and captures merge-base-to-head Git objects. It persists PR identity and revisions with the authoritative inventory. The checkout remains beside the capture for agent inspection; reopening the viewer needs only saved artifacts. A moving head fails capture rather than silently reviewing a different revision. PR feedback saves immediately into the signed-in user’s pending GitHub review. The viewer supports editing/deleting drafts, a summary with explicit fallback for unsupported inline ranges, and Comment/Approve/Request changes submission. New commits do not block submission. Published conversation browsing, replies, and thread resolution remain future work.
 
 ## Next implementation step
 

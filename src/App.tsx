@@ -1,3 +1,4 @@
+import GitHubFeedback from "./components/GitHubFeedback";
 import { useTheme } from "./hooks/useTheme";
 import { useFeedbackStorage } from "./hooks/useFeedbackStorage";
 import { useReviewNavigation } from "./hooks/useReviewNavigation";
@@ -20,6 +21,7 @@ import {
   indexChanges,
   statistics,
   type Anchor,
+  type Comment,
   type SourceFile,
   type Snapshot,
 } from "./core/review";
@@ -65,7 +67,16 @@ export default function App({
   );
 
   const [theme, setTheme] = useTheme();
-  const { comments, setComments, storageError } = useFeedbackStorage(snapshot);
+
+  const {
+    comments: localComments,
+    setComments,
+    storageError,
+  } = useFeedbackStorage(snapshot);
+
+  const [githubComments, setGithubComments] = useState<Comment[]>([]);
+  const [githubCount, setGithubCount] = useState(0);
+  const comments = snapshot.pullRequest ? githubComments : localComments;
   const [anchor, setAnchor] = useState<Anchor | null>(null);
   const [draft, setDraft] = useState("");
   const [feedbackOpen, setFeedbackOpen] = useState(false);
@@ -165,17 +176,40 @@ export default function App({
             <button
               type="button"
               className="flex items-center gap-2 rounded border border-mist-300 dark:border-mist-700 bg-white dark:bg-mist-900 px-2.5 py-1.5 hover:bg-mist-100 hover:dark:bg-mist-900 [&_span]:text-mist-500 [&_span]:dark:text-mist-400"
+              id="finish-review-button"
+              popoverTarget={
+                snapshot.pullRequest ? "finish-review-popover" : undefined
+              }
+              aria-expanded={feedbackOpen}
+              aria-controls={
+                snapshot.pullRequest ? "finish-review-popover" : undefined
+              }
               onClick={() => {
-                setFeedbackOpen(true);
+                if (!snapshot.pullRequest) setFeedbackOpen(true);
                 setCopyStatus("");
               }}
             >
               <MessageSquare size={16} />
-              Your feedback<span>{comments.length}</span>
+              {snapshot.pullRequest ? "Finish review" : "Your feedback"}
+              <span>
+                {snapshot.pullRequest ? githubCount : comments.length}
+              </span>
             </button>
           </div>
         </header>
-        {storageError && (
+        {snapshot.pullRequest && (
+          <GitHubFeedback
+            snapshot={snapshot}
+            anchor={anchor}
+            closeAnchor={() => setAnchor(null)}
+            open={feedbackOpen}
+            onOpen={() => setFeedbackOpen(true)}
+            close={() => setFeedbackOpen(false)}
+            onComments={setGithubComments}
+            onCount={setGithubCount}
+          />
+        )}
+        {storageError && !snapshot.pullRequest && (
           <div
             className="border-b border-mist-300 dark:border-mist-700 bg-mist-100 dark:bg-mist-900 px-4 py-2 text-sm text-mist-700 dark:text-mist-300"
             role="status"
@@ -238,10 +272,10 @@ export default function App({
           />
         </main>
       </div>
-      {anchor && (
+      {anchor && !snapshot.pullRequest && (
         <Dialog title="Leave feedback" onClose={() => setAnchor(null)}>
           <form
-            className="p-3 [&>label]:mb-2 [&>label]:block [&>textarea]:w-full [&>textarea]:rounded [&>textarea]:border [&>textarea]:border-mist-300 [&>textarea]:dark:border-mist-700 [&>textarea]:bg-white [&>textarea]:dark:bg-mist-900 [&>textarea]:p-2 [&>textarea]:outline-mist-500"
+            className="p-3 [&>label]:mb-2 [&>label]:block [&>textarea]:w-full [&>textarea]:rounded [&>textarea]:border [&>textarea]:border-mist-300 [&>textarea]:dark:border-mist-700 [&>textarea]:bg-white [&>textarea]:dark:bg-mist-900 [&>textarea]:p-2 [&>textarea]:outline-blue-600"
             onSubmit={(e) => {
               e.preventDefault();
               saveComment();
@@ -268,7 +302,7 @@ export default function App({
               </button>
               <button
                 type="submit"
-                className="inline-flex items-center justify-center gap-2 rounded bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-500"
+                className="inline-flex items-center justify-center gap-2 rounded bg-blue-700 px-3 py-1.5 text-sm font-medium text-white enabled:hover:bg-blue-600"
                 disabled={!draft.trim()}
               >
                 Save feedback
@@ -277,7 +311,7 @@ export default function App({
           </form>
         </Dialog>
       )}
-      {feedbackOpen && (
+      {feedbackOpen && !snapshot.pullRequest && (
         <Dialog
           title={`Your feedback (${comments.length})`}
           onClose={() => setFeedbackOpen(false)}
@@ -318,7 +352,7 @@ export default function App({
                 </button>
                 <button
                   type="button"
-                  className="inline-flex items-center justify-center gap-2 rounded bg-violet-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-violet-500"
+                  className="inline-flex items-center justify-center gap-2 rounded bg-blue-700 px-3 py-1.5 text-sm font-medium text-white enabled:hover:bg-blue-600"
                   onClick={copyFeedback}
                 >
                   {copyStatus === "Copied" ? (

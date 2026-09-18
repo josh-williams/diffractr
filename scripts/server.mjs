@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createReviewService } from "./github-review.mjs";
 import { createServer } from "node:http";
 import { randomBytes } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
@@ -23,6 +24,8 @@ export function serveSnapshot(
     throw new Error("Build the app first: npm run build");
   const token = randomBytes(24).toString("hex");
 
+  const github = snapshot.pullRequest ? createReviewService(snapshot) : null;
+
   const mime = {
     ".html": "text/html",
     ".js": "text/javascript",
@@ -33,7 +36,7 @@ export function serveSnapshot(
     ".woff2": "font/woff2",
   };
 
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
     const authority = `127.0.0.1:${server.address().port}`;
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -48,13 +51,49 @@ export function serveSnapshot(
       return;
     }
 
+    const url = new URL(req.url, `http://${authority}`);
+
+    if (url.pathname === "/api/github-review" && github) {
+      if (
+        req.headers.authorization !== `Bearer ${token}` ||
+        (req.method !== "GET" && req.headers.origin !== `http://${authority}`)
+      ) {
+        res.writeHead(403).end();
+
+        return;
+      }
+
+      res.setHeader("Content-Type", "application/json");
+
+      try {
+        if (req.method === "GET") res.end(JSON.stringify(await github.read()));
+        else if (
+          req.method === "POST" &&
+          req.headers["content-type"] === "application/json"
+        ) {
+          let body = "";
+
+          for await (const chunk of req) {
+            body += chunk;
+
+            if (Buffer.byteLength(body) > 256 * 1024)
+              throw new Error("Review request is too large.");
+          }
+
+          res.end(JSON.stringify(await github.mutate(JSON.parse(body))));
+        } else res.writeHead(405).end();
+      } catch (error) {
+        res.writeHead(400).end(JSON.stringify({ error: error.message }));
+      }
+
+      return;
+    }
+
     if (req.method !== "GET") {
       res.writeHead(405).end();
 
       return;
     }
-
-    const url = new URL(req.url, `http://${authority}`);
 
     if (["/api/snapshot", "/api/review"].includes(url.pathname)) {
       if (req.headers.authorization !== `Bearer ${token}`) {

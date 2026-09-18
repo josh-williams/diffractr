@@ -2,7 +2,7 @@
 
 diffractr helps developers understand and review large code changes through behavior-based sections, concise explanations, and annotations anchored to the code.
 
-The initial workflow focuses on local self-review of coding-agent output, using Codex to organize and explain changes. GitHub PR input is supported locally; posting GitHub reviews and cloud hosting are planned follow-ups.
+The initial workflow focuses on local self-review of coding-agent output, using Codex to organize and explain changes. GitHub PR input and draft review submission are supported locally. Cloud hosting remains a future milestone.
 
 ## Install and review
 
@@ -39,9 +39,13 @@ Requires GitHub CLI (`gh`) authenticated with repository access (`gh auth login`
 
 The command creates a new temporary review directory containing `capture.json`, `diff.txt`, `analysis.yaml`, and an isolated `checkout/` at the captured head. Use `--out /path/to/new-review` to choose a new directory; existing directories are refused. The checkout stays available for agent inspection until you remove the review directory. It includes fetched history and can take time and disk space for large repositories. Dependencies, submodules, and Git LFS contents are not installed or fetched.
 
-Source is read directly from Git objects between the captured merge base and head, independently of checkout transformations or edits. The exact base, head, and merge-base commits and PR details are saved. If the PR head changes while fetching, capture fails and asks you to retry. Later pushes require a fresh capture. Closed and merged PRs use the base/head revisions currently reported by GitHub, not a reconstruction of their historical pre-merge state.
+Source is read directly from Git objects between the captured merge base and head, independently of checkout transformations or edits. The exact base, head, and merge-base commits and PR details are saved. If the PR head changes while fetching, capture fails and asks you to retry. Later pushes do not change the saved snapshot; capture again to inspect newer code. Closed and merged PRs use the base/head revisions currently reported by GitHub, not a reconstruction of their historical pre-merge state.
 
-Author `analysis.yaml`, then use the same `validate` and `open` commands below. Reopening needs neither GitHub nor the checkout. The viewer shows the PR link and captured commits. Feedback remains local and can be exported; nothing is posted to GitHub.
+Author `analysis.yaml`, then use the same `validate` and `open` commands below. Reopening the captured code needs neither GitHub nor the checkout. The viewer shows the PR link and captured commits.
+
+For PR snapshots, **Save draft to GitHub** immediately adds a private draft comment to your pending GitHub review, creating one if needed. **Finish review** loads all comments in that review, including comments written on GitHub or outside this snapshot. Edit/delete comments, save an overall summary, then submit the review as **Comment**, **Approve**, or **Request changes**. The Finish review popover submits the summary and selected outcome in one step, including approvals without inline comments. GitHub authentication with review-writing access and an internet connection are required for feedback. You can also submit the pending review on GitHub itself.
+
+New commits do not block feedback or submission. Comments use the captured source coordinates. When GitHub cannot anchor a range, the viewer offers to include its file, revision, quoted code, and feedback in the pending review summary. Placement is never silently changed. Drafts refresh when the window regains focus and can be refreshed manually. Unsaved text has browser-local recovery; saved drafts live on GitHub and survive reopening on another port. Published conversations, replies, and thread resolution are not loaded yet.
 
 ### CLI workflow
 
