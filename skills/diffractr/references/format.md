@@ -57,7 +57,7 @@ Rows are the labels printed within each block, not source-file line numbers. A r
 
 Every changed row must belong to exactly one group. Multiple selectors for the same block in one group are combined before rendering. For adjacent replacements, select the relevant deleted AND added rows; they may be nonadjacent in the block. For example, with two deletions followed by two additions, the first behavior might own `"1, 3"` and the second `"2, 4"`.
 
-Non-text, mode-only, and empty-file changes have whole-change blocks with no rows. Assign the block without `rows`. When a file has both text edits and a mode change, the mode change has its own block. Renames currently appear as deletion/addition changes.
+Non-text, mode-only, and empty-file changes have whole-change blocks with no rows. Assign the block without `rows`. When a file has both text edits and a mode change, the mode change has its own block. Renames have a whole-change metadata block showing the original and destination paths and Git similarity. Assign it without `rows`; any text edits have separate blocks and may belong to a different group. Mode changes and non-text notices share the rename metadata block when present. A pure rename contributes no changed text lines. Do not invent rename pairings or edit saved captures; the capture supplies them.
 
 A flag's selected changed rows must all belong to one group. Whole-change flags are allowed. Context-only or cross-group flags are invalid. The viewer places a text flag at the end of its last selected new-side run, or old-side run for a deletion; a whole-change flag appears in the file card.
 

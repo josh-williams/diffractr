@@ -54,7 +54,7 @@ Contiguous edit blocks are numbered for authoring. Whole-block references and bl
 
 The local command captures merge-base-to-working-tree changes, including non-ignored untracked files, without mutating Git. It checks two consecutive reads and retries observed concurrent edits. The snapshot remains fixed in memory and is served on loopback with a per-session access token. Browser feedback uses the snapshot identity and original source coordinates.
 
-Base resolution prefers recorded remote default metadata, then an unambiguous main/master reference; ambiguous cases require `--base`. No automatic fetch occurs. Binary/non-UTF-8 content, files over 2 MiB, symlinks, special files, and submodules receive visible notices. Empty files and mode changes remain visible; renames appear as delete/add. Basic file-role heuristics are implemented.
+Base resolution prefers recorded remote default metadata, then an unambiguous main/master reference; ambiguous cases require `--base`. No automatic fetch occurs. Binary/non-UTF-8 content, files over 2 MiB, symlinks, special files, and submodules receive visible notices. Empty files and mode changes remain visible; whole-file renames appear as one file with original and destination paths, using Git similarity detection. Basic file-role heuristics are implemented.
 
 Tests use temporary Git repositories to exercise capture integrity, worktrees, merge bases, mixed changes, ambiguity, conflicts, and concurrency; HTTP tests check snapshot access and immutability. UI rendering tests cover empty and metadata-only reviews. Interactive behavior has been checked manually during development; automated browser regression coverage remains deferred.
 
@@ -70,7 +70,7 @@ The bundled Codex skill uses the existing agent session and its tools. It writes
 
 ## Next implementation step
 
-Evaluate the skill on larger real changes, comparing grouping quality, first-pass coverage, and repair effort. Verify interactive rendering and feedback for saved reviews, including Mermaid errors and split fragments. Exact move matching, rename presentation, richer split-fragment context, and handling checkout transformations remain follow-ups.
+Evaluate the skill on larger real changes, comparing grouping quality, first-pass coverage, and repair effort. Verify interactive rendering and feedback for saved reviews, including Mermaid errors and split fragments. Code move/copy matching, richer split-fragment context, and handling checkout transformations remain follow-ups.
 
 The local scope remains fixed: all net changes since the branch's merge base, with no scope selector or committed-only mode.
 

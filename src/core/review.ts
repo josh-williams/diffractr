@@ -7,6 +7,8 @@ export type FileRole = "production" | "tests" | "generated" | "other";
 export interface SourceFile {
   id: string;
   path: string;
+  oldPath?: string;
+  renameSimilarity?: number;
   before: string | null;
   after: string | null;
   role: FileRole;
@@ -89,9 +91,15 @@ export interface Analysis {
 
 export const roles: FileRole[] = ["production", "tests", "generated", "other"];
 
+export function fileLabel(file: SourceFile): string {
+  return file.oldPath ? `${file.oldPath} → ${file.path}` : file.path;
+}
+
 export function fileDiff(file: SourceFile): FileDiffMetadata {
   return parseDiffFromFile(
-    file.before === null ? null : { name: file.path, contents: file.before },
+    file.before === null
+      ? null
+      : { name: file.oldPath ?? file.path, contents: file.before },
     file.after === null ? null : { name: file.path, contents: file.after },
     { context: 0 },
   );
@@ -228,6 +236,8 @@ export function unitDiff(
   if (!parsed) throw new Error(`Unable to render ${unit.id}`);
   parsed.name = file.path;
 
+  if (file.oldPath) parsed.prevName = file.oldPath;
+
   return parsed;
 }
 
@@ -278,7 +288,10 @@ export function exportFeedback(
           .map((l) => `> ${l}`)
           .join("\n");
 
-        return `\n## ${i + 1}. ${file.path} (${c.side === "additions" ? "new" : "old"} lines ${c.start}–${c.end})\n\n${c.body}\n\n${quote}\n`;
+        const path =
+          c.side === "deletions" ? (file.oldPath ?? file.path) : file.path;
+
+        return `\n## ${i + 1}. ${path} (${c.side === "additions" ? "new" : "old"} lines ${c.start}–${c.end})\n\n${c.body}\n\n${quote}\n`;
       })
       .join("")
   );

@@ -5,7 +5,7 @@ Source facts and authored analysis are separate. Source types and diff projectio
 ## Artifact boundaries
 
 - **Capture:** immutable before/after file contents, modes, repository/comparison metadata, snapshot identity, and a checksum in `capture.json`. A null side means addition or deletion. Roles are independent of group ownership.
-- **Block inventory:** deterministic snapshot-local references `B1`, `B2`, etc. Text blocks originate from contiguous edit regions with up to three context lines bounded by neighboring changes. Rows have explicit numbers, operations, content, and original coordinates. Non-text, mode-only, and empty-file changes have whole-change blocks without rows.
+- **Block inventory:** deterministic snapshot-local references `B1`, `B2`, etc. Text blocks originate from contiguous edit regions with up to three context lines bounded by neighboring changes. Rows have explicit numbers, operations, content, and original coordinates. Renames, non-text, mode-only, and empty-file changes have whole-change blocks without rows.
 - **Authored analysis:** snapshot reference, overview, ordered groups with Markdown descriptions and selections, and text flags with selections. It never supplies source text or invents group/flag IDs.
 - **Resolved review:** generated navigation IDs, group ownership, source-coordinate projections, file membership, and flag placement, derived from validated analysis.
 - **Feedback:** snapshot identity, file, side, inclusive source range, and reviewer text, persisted in browser storage and exported as Markdown for local inputs. PR inputs save drafts to the signed-in user’s pending GitHub review.
@@ -35,7 +35,7 @@ Markdown is rendered without raw HTML. Mermaid is lazy-loaded with strict securi
 ## Remaining limitations
 
 - Regular UTF-8 files are compared as raw content without Git content filters. Checkout transformations such as CRLF normalization or LFS pointers may appear as differences. Sparse checkouts are not supported; missing tracked paths are treated as deletions. Paths must be valid UTF-8.
-- Binary/non-UTF-8 content, files over 2 MiB, symlinks, special files, and submodules receive notices. Renames appear as delete/add; exact move/copy detection remains future work.
+- Binary/non-UTF-8 content, files over 2 MiB, symlinks, special files, and submodules receive notices. Whole-file renames use Git similarity detection at 50%, including empty files. Exhaustive similarity matching is bounded to 1,000 candidates; exact matches still participate beyond that limit. Copies and code moves within or between files remain future work.
 - A changed line has one owner even when multiple behaviors affect it. Character-level splitting, cross-revision feedback migration, and progress tracking are deferred.
 - General-purpose syntax highlighting and Mermaid produce large build chunks. Larger-review performance needs further evaluation.
 
@@ -58,3 +58,11 @@ Original source coordinates map to GitHub line/side ranges. GitHub’s compariso
 Comment bodies carry a hidden operation marker to reconcile lost responses and repeated saves. Unknown write outcomes trigger a refresh rather than an automatic repeat. Submission addresses a specific pending review ID and checks its summary and comments against what the user saw. It never creates a second review as an automatic retry. Summary/comment edits reject observed external changes. These are preflight checks, not atomic locks against concurrent edits on GitHub or another local server.
 
 The browser retains recovery copies of unsaved comment, edit, and summary text within its current origin. Saved drafts are not mirrored to a local feedback artifact. Remote drafts refresh on window focus and on demand. A review submitted or removed elsewhere is reflected on refresh. Published conversations, replies, thread resolution, and automatic cross-revision migration remain outside this workflow.
+
+## Renames
+
+A renamed file has one snapshot-local ID, destination `path`, original `oldPath`, and `renameSimilarity` (Git's integer similarity percentage). Its before/after contents and modes belong to the corresponding paths. Rename metadata is included in snapshot identity and the capture checksum. Existing version-2 captures without these fields remain valid; saved delete/add pairs and inventories are never reinterpreted. Recapture to obtain rename detection.
+
+Local capture matches deleted sources against added destinations, including untracked files, using temporary Git trees and an isolated index/object store. Captured bytes bypass content filters. Large destinations stream into temporary Git storage for matching while remaining non-text notices in the review. PR capture compares committed trees with the same 50% threshold, empty-file support, and candidate limit. Pairings are heuristic, one-to-one, and persisted; duplicate-content candidates follow Git's matching order.
+
+Every rename has a whole-change metadata block, combined with mode changes or non-text notices where present. Text edits have separate blocks, allowing a rename and its edits to belong to different groups. Headers and CLI inventory show both paths. Counts include one file and only actual text edits; pure renames contribute zero text lines. Old-side feedback exports the original path, new-side feedback the destination. Unchanged text remains available through complete-file inspection.

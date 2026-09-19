@@ -119,3 +119,29 @@ it("rejects legacy captures instead of silently reinterpreting their references"
   );
   expect(() => loadCapture(dir)).toThrow("saved block inventory");
 });
+
+it("persists rename paths, matching basis, and authoritative blocks and checks their integrity", () => {
+  const dir = mkdtempSync(join(tmpdir(), "diffractr-workflow-"));
+  dirs.push(dir);
+
+  const renamed = {
+    ...snapshot,
+    files: [
+      { ...snapshot.files[0], oldPath: "old-name.ts", renameSimilarity: 75 },
+    ],
+  };
+
+  saveCapture(renamed, dir);
+  const reopened = loadCapture(dir);
+  expect(reopened.files).toEqual(renamed.files);
+  expect(inventory(reopened)).toEqual(inventory(renamed));
+  expect(readFileSync(join(dir, "diff.txt"), "utf8")).toContain("old-name.ts");
+
+  const saved = savedCaptureSchema.parse(
+    JSON.parse(readFileSync(join(dir, "capture.json"), "utf8")),
+  );
+
+  saved.snapshot.files[0].oldPath = "tampered.ts";
+  writeFileSync(join(dir, "capture.json"), JSON.stringify(saved));
+  expect(() => loadCapture(dir)).toThrow("checksum");
+});
