@@ -8,6 +8,8 @@ export default function FullFileDiff({ file }: { file: SourceFile }) {
   useEffect(() => {
     const host = container.current!;
 
+    if (file.before === file.after) return;
+
     // Custom separator slots are owned by the imperative renderer.
     const viewer = new FileDiff({
       theme: "pierre-dark",
@@ -25,6 +27,13 @@ export default function FullFileDiff({ file }: { file: SourceFile }) {
       host.replaceChildren();
     };
   }, [file]);
+
+  if (file.before === file.after)
+    return (
+      <pre className="overflow-auto whitespace-pre-wrap bg-mist-950 p-3 font-mono text-xs text-mist-200">
+        {file.after || "Empty file"}
+      </pre>
+    );
 
   return <div ref={container} />;
 }

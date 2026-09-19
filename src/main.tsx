@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { preloadHighlighter } from "@pierre/diffs";
+import { preloadReviewLanguages } from "./highlighting";
 import App from "./App";
 import {
   snapshot as exampleSnapshot,
@@ -48,10 +48,7 @@ async function start() {
     analysisErrors = z.array(z.string()).catch([]).parse(review.errors);
   }
 
-  await preloadHighlighter({
-    themes: ["pierre-dark"],
-    langs: ["typescript", "yaml"],
-  });
+  await preloadReviewLanguages(snapshot);
   root.render(
     <StrictMode>
       <App

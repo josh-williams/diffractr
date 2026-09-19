@@ -171,3 +171,42 @@ describe("directional context expansion", () => {
     expect(trailing.additionLines.join("")).toBe("new\nf\ng\nh\ni\nj\n");
   });
 });
+
+it("counts renamed files once, counts only edits, and exports feedback with side-specific paths", () => {
+  const renamed = sample("same\nold\n", "same\nnew\n");
+  renamed.files[0].oldPath = "src/old.ts";
+  expect(renamed.files).toHaveLength(1);
+  const counts = statistics(renamed);
+  expect(counts.find((row) => row.role === "production")).toMatchObject({
+    additions: 1,
+    deletions: 1,
+  });
+
+  const text = exportFeedback(renamed, [
+    {
+      id: "old",
+      snapshotId: renamed.id,
+      fileId: "file",
+      side: "deletions",
+      start: 2,
+      end: 2,
+      body: "Old feedback",
+    },
+    {
+      id: "new",
+      snapshotId: renamed.id,
+      fileId: "file",
+      side: "additions",
+      start: 2,
+      end: 2,
+      body: "New feedback",
+    },
+  ]);
+
+  expect(text).toContain("src/old.ts (old lines 2–2)");
+  expect(text).toContain("src/file.ts (new lines 2–2)");
+  renamed.files[0].after = renamed.files[0].before;
+  expect(
+    statistics(renamed).find((row) => row.role === "production"),
+  ).toMatchObject({ additions: 0, deletions: 0 });
+});

@@ -100,7 +100,7 @@ export function inventory(snapshot: Snapshot): Block[] {
       file.newMode != null &&
       file.oldMode !== file.newMode;
 
-    if (!siblings.length || modeChanged)
+    if (!siblings.length || modeChanged || file.oldPath)
       blocks.push({
         id: `B${blocks.length + 1}`,
         fileId: file.id,
@@ -108,14 +108,20 @@ export function inventory(snapshot: Snapshot): Block[] {
         kind: "metadata",
         rows: [],
         notice:
-          file.notice ??
-          (modeChanged
-            ? `Mode ${file.oldMode} → ${file.newMode}`
-            : file.before === null
-              ? "Empty file added"
-              : file.after === null
-                ? "Empty file deleted"
-                : "File metadata change"),
+          [
+            file.oldPath
+              ? `Renamed ${JSON.stringify(file.oldPath)} → ${JSON.stringify(file.path)}${file.renameSimilarity === undefined ? "" : ` (Git similarity ${file.renameSimilarity}%)`}`
+              : undefined,
+            file.notice,
+            modeChanged ? `Mode ${file.oldMode} → ${file.newMode}` : undefined,
+          ]
+            .filter(Boolean)
+            .join("; ") ||
+          (file.before === null
+            ? "Empty file added"
+            : file.after === null
+              ? "Empty file deleted"
+              : "File metadata change"),
       });
   }
 
@@ -421,11 +427,17 @@ export function inventoryText(snapshot: Snapshot): string {
     `Snapshot: ${snapshot.id}\n${snapshot.repository}: ${snapshot.branch} ← ${snapshot.base}\nRows are block-local, inclusive; context is not owned.\n\n` +
     inventory(snapshot)
       .map((b) => {
+        const file = snapshot.files.find((file) => file.id === b.fileId);
+
+        const label = file?.oldPath
+          ? `${JSON.stringify(file.oldPath)} → ${JSON.stringify(b.path)}`
+          : JSON.stringify(b.path);
+
         if (b.kind === "metadata")
-          return `${b.id} ${JSON.stringify(b.path)} [whole change]\n${b.notice}\n`;
+          return `${b.id} ${label} [whole change]\n${b.notice}\n`;
 
         return (
-          `${b.id} ${JSON.stringify(b.path)}\n` +
+          `${b.id} ${label}\n` +
           b.rows
             .map(
               (r) =>

@@ -97,3 +97,28 @@ it("shows PR identity and pinned revisions without labeling it as local changes"
   expect(html).toContain("PR snapshot");
   expect(html).not.toContain("Local changes");
 });
+
+it("shows both rename paths and leaves unchanged file inspection enabled", () => {
+  vi.stubGlobal("window", { matchMedia: () => ({ matches: false }) });
+
+  const html = renderToString(
+    <App
+      snapshot={{
+        ...snapshot,
+        files: [
+          {
+            ...snapshot.files[0],
+            oldPath: "old-script.sh",
+            renameSimilarity: 100,
+            newMode: "100644",
+          },
+        ],
+      }}
+    />,
+  );
+
+  expect(html).toContain("old-script.sh → script.sh");
+  expect(html).toContain("Git similarity 100%");
+  expect(html).toContain("No changed text lines");
+  expect(html).not.toContain('disabled=""');
+});

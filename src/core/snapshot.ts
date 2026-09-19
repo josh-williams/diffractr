@@ -53,6 +53,8 @@ export const snapshotSchema = z.object({
     z.object({
       id: z.string().min(1),
       path: z.string().min(1),
+      oldPath: z.string().min(1).optional(),
+      renameSimilarity: z.number().int().min(0).max(100).optional(),
       before: z.string().nullable(),
       after: z.string().nullable(),
       role: z.enum(["production", "tests", "generated", "other"]),

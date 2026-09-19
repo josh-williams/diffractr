@@ -339,7 +339,15 @@ export default function App({
         </Dialog>
       )}
       {fullFile && (
-        <Dialog wide title={fullFile.path} onClose={() => setFullFile(null)}>
+        <Dialog
+          wide
+          title={
+            fullFile.oldPath
+              ? `${fullFile.oldPath} → ${fullFile.path}`
+              : fullFile.path
+          }
+          onClose={() => setFullFile(null)}
+        >
           <FullFileDiff file={fullFile} />
         </Dialog>
       )}

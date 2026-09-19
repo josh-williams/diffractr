@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import type { SelectedLineRange } from "@pierre/diffs";
 import type { SourceFile, Anchor } from "../core/review";
+import { fileLabel } from "../core/review";
 
 export default function DiffHeader({
   file,
@@ -36,11 +37,12 @@ export default function DiffHeader({
           className="flex min-w-0 flex-1 items-center gap-2 text-left [&>svg]:shrink-0 [&>span]:truncate [&>span]:font-sans [&>span]:text-xs"
           onClick={() => toggle()}
           aria-expanded={!collapsed}
-          aria-label={`${collapsed ? "Expand" : "Collapse"} ${file.path}`}
+          aria-label={`${collapsed ? "Expand" : "Collapse"} ${fileLabel(file)}`}
+          title={fileLabel(file)}
         >
           {collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}
           <FileCode2 size={16} />
-          <span>{file.path}</span>
+          <span>{fileLabel(file)}</span>
         </button>
         <span className="hidden text-xs text-mist-400 sm:inline">
           {file.role}
@@ -53,9 +55,11 @@ export default function DiffHeader({
         )}
         <button
           className="inline-flex shrink-0 items-center justify-center rounded p-1 text-mist-400 hover:bg-mist-800 hover:text-white"
-          disabled={!!file.notice || file.before === file.after}
+          disabled={
+            !!file.notice || (!file.oldPath && file.before === file.after)
+          }
           title="Open complete file diff"
-          aria-label={`Open complete diff for ${file.path}`}
+          aria-label={`Open complete diff for ${fileLabel(file)}`}
           onClick={() => onFullFile(file)}
         >
           <Maximize2 size={15} />
@@ -78,6 +82,14 @@ export default function DiffHeader({
           </button>
         )}
       </header>
+      {metadata && file.oldPath && (
+        <p className="border-b border-mist-800 px-3 py-1.5 text-xs text-mist-400">
+          Renamed
+          {file.renameSimilarity === undefined
+            ? ""
+            : ` · Git similarity ${file.renameSimilarity}%`}
+        </p>
+      )}
       {metadata &&
         file.oldMode !== undefined &&
         file.oldMode !== file.newMode && (
