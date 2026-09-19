@@ -1,43 +1,65 @@
 #!/usr/bin/env node
-import { createReviewService } from "./github-review.mjs";
+import { createReviewService } from "./github-review.ts";
 import { createServer } from "node:http";
 import { randomBytes } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
 import { dirname, resolve, extname, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/**
- * @param {import('../src/core/review').Snapshot} snapshot
- * @param {{port?: number, analysis?: unknown, errors?: string[], dist?: string}} options
- * @returns {Promise<{server: import('node:http').Server, url: string}>}
- */
+import type { Server } from "node:http";
+import type { Snapshot } from "../src/core/review.ts";
+import type { AuthoredAnalysis } from "../src/core/analysis.ts";
+
+export interface ServerOptions {
+  port?: number;
+  analysis?: AuthoredAnalysis;
+  errors?: string[];
+  dist?: string;
+}
+
+export interface SnapshotServer {
+  server: Server;
+  url: string;
+}
+
+function listeningPort(server: Server): number {
+  const address = server.address();
+
+  // Node returns a string for Unix sockets; this server requires a TCP address.
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof
+  if (!address || typeof address === "string")
+    throw new Error("Review server is not listening on a TCP port.");
+
+  return address.port;
+}
+
 export function serveSnapshot(
-  snapshot,
+  snapshot: Snapshot,
   {
     port = 0,
     analysis,
     errors = [],
     dist = resolve(dirname(fileURLToPath(import.meta.url)), "../dist/viewer"),
-  } = {},
-) {
+  }: ServerOptions = {},
+): Promise<SnapshotServer> {
   if (!existsSync(resolve(dist, "index.html")))
     throw new Error("Build the app first: npm run build");
   const token = randomBytes(24).toString("hex");
 
   const github = snapshot.pullRequest ? createReviewService(snapshot) : null;
 
-  const mime = {
-    ".html": "text/html",
-    ".js": "text/javascript",
-    ".css": "text/css",
-    ".png": "image/png",
-    ".svg": "image/svg+xml",
-    ".woff": "font/woff",
-    ".woff2": "font/woff2",
-  };
+  const mime = new Map<string, string>([
+    [".html", "text/html"],
+    [".js", "text/javascript"],
+    [".css", "text/css"],
+    [".png", "image/png"],
+    [".svg", "image/svg+xml"],
+    [".woff", "font/woff"],
+    [".woff2", "font/woff2"],
+  ]);
 
   const server = createServer(async (req, res) => {
-    const authority = `127.0.0.1:${server.address().port}`;
+    const authority = `127.0.0.1:${listeningPort(server)}`;
     res.setHeader("Cache-Control", "no-store");
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
@@ -51,7 +73,7 @@ export function serveSnapshot(
       return;
     }
 
-    const url = new URL(req.url, `http://${authority}`);
+    const url = new URL(req.url ?? "/", `http://${authority}`);
 
     if (url.pathname === "/api/github-review" && github) {
       if (
@@ -83,7 +105,14 @@ export function serveSnapshot(
           res.end(JSON.stringify(await github.mutate(JSON.parse(body))));
         } else res.writeHead(405).end();
       } catch (error) {
-        res.writeHead(400).end(JSON.stringify({ error: error.message }));
+        res.writeHead(400).end(
+          JSON.stringify({
+            error:
+              error instanceof Error
+                ? error.message
+                : "GitHub review request failed.",
+          }),
+        );
       }
 
       return;
@@ -131,7 +160,7 @@ export function serveSnapshot(
 
       res.setHeader(
         "Content-Type",
-        mime[extname(path)] ?? "application/octet-stream",
+        mime.get(extname(path)) ?? "application/octet-stream",
       );
       const bytes = readFileSync(path);
       res.end(
@@ -154,7 +183,7 @@ export function serveSnapshot(
     server.listen(port, "127.0.0.1", () =>
       resolveServer({
         server,
-        url: `http://127.0.0.1:${server.address().port}/#snapshot=${token}`,
+        url: `http://127.0.0.1:${listeningPort(server)}/#snapshot=${token}`,
       }),
     );
   });

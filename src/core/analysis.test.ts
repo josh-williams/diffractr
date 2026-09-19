@@ -7,8 +7,8 @@ import {
   selectRows,
   validateAnalysis,
   type AuthoredAnalysis,
-} from "./analysis";
-import { indexChanges, unitDiff, type Snapshot } from "./review";
+} from "./analysis.ts";
+import { indexChanges, unitDiff, type Snapshot } from "./review.ts";
 
 const source: Snapshot = {
   id: "snapshot",

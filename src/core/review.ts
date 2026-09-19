@@ -16,7 +16,7 @@ export interface SourceFile {
 }
 
 export interface Snapshot {
-  inventory?: import("./analysis").Block[];
+  inventory?: import("./analysis.ts").Block[];
   id: string;
   repository: string;
   branch: string;

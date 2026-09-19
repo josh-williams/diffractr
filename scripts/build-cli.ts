@@ -2,7 +2,7 @@ import { build } from "esbuild";
 import { chmodSync } from "node:fs";
 
 await build({
-  entryPoints: ["scripts/standalone.ts"],
+  entryPoints: ["scripts/cli.ts"],
   outfile: "dist/cli.mjs",
   bundle: true,
   platform: "node",

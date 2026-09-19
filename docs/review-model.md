@@ -24,7 +24,7 @@ Global counts derive from source changes, not repeated file appearances or displ
 
 ## Local transport and integrity
 
-`scripts/capture.mjs` captures the merge-base-to-working-tree state. Two matching consecutive reads are required, with up to three attempts. This detects observed concurrent edits; it is not a filesystem-atomic snapshot. Source identity incorporates repository location, fingerprints, modes, and comparison metadata.
+`scripts/capture.ts` captures the merge-base-to-working-tree state. Two matching consecutive reads are required, with up to three attempts. This detects observed concurrent edits; it is not a filesystem-atomic snapshot. Source identity incorporates repository location, fingerprints, modes, and comparison metadata.
 
 `scripts/workflow.ts` saves and reloads capture artifacts. The version-2 capture envelope includes a SHA-256 checksum over canonical snapshot JSON, including its authoritative block inventory. Saved block IDs, numbered rows, source mappings, and change units drive inspection, validation, and browser projections without rerunning block generation. Version-1 captures must be recaptured; the authored analysis format remains version 1. Reopening verifies the checksum before interpreting block references. It detects accidental modification, not authenticity against an adversary who can replace the source and checksum together. Captured artifacts remain tied to their original snapshot when live files change.
 

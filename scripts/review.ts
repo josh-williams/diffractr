@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { capture } from "./capture.mjs";
-import { serveSnapshot } from "./server.mjs";
+import { capture } from "./capture.ts";
+import { serveSnapshot } from "./server.ts";
 
-export { serveSnapshot } from "./server.mjs";
+export { serveSnapshot } from "./server.ts";
 
-async function main() {
+async function main(): Promise<void> {
   const args = process.argv.slice(2);
 
   if (args.includes("--help")) {
@@ -18,7 +18,7 @@ async function main() {
   }
 
   let repository = process.cwd(),
-    base,
+    base: string | undefined,
     port = 5174;
 
   for (let i = 0; i < args.length; i += 2) {

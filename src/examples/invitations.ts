@@ -1,5 +1,5 @@
-import { inventory, type AuthoredAnalysis } from "../core/analysis";
-import { indexChanges, type Snapshot } from "../core/review";
+import { inventory, type AuthoredAnalysis } from "../core/analysis.ts";
+import { indexChanges, type Snapshot } from "../core/review.ts";
 
 export const snapshot: Snapshot = {
   id: "example-invitations-v1",

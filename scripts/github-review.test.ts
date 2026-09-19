@@ -1,3 +1,13 @@
+import assert from "node:assert/strict";
+import { z } from "zod";
+import type { Snapshot } from "../src/core/review.ts";
+import type {
+  GitHubReview,
+  GitHubComment,
+  GitHubPayload,
+  JsonValue,
+  ReviewState,
+} from "./github-review.ts";
 import { describe, it, expect } from "vitest";
 import { randomUUID } from "node:crypto";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
@@ -8,12 +18,14 @@ import {
   inPatch,
   GitHubValidationError,
   githubRequest,
-} from "./github-review.mjs";
-import { serveSnapshot } from "./server.mjs";
-import { reviewStateSchema } from "../src/core/github-feedback.mjs";
+} from "./github-review.ts";
+import { serveSnapshot } from "./server.ts";
+import { reviewStateSchema } from "../src/core/github-feedback.ts";
 
 const snapshot = {
   id: "capture",
+  branch: "feature",
+  base: "main",
   repository: "acme/project",
   head: "a".repeat(40),
   mergeBase: "b".repeat(40),
@@ -25,21 +37,35 @@ const snapshot = {
   files: [
     {
       id: "f1",
+      role: "production",
       path: "src/file.ts",
       before: "old\ncontext\nexpanded",
       after: "new\ncontext\nexpanded",
     },
   ],
-};
+} satisfies Snapshot;
 
 const patch = "@@ -1,2 +1,2 @@\n-old\n+new\n context";
 
-function fixture() {
-  const reviews = [];
-  const comments = [];
-  const calls = [];
+interface FixtureWorld {
+  user: string;
+  head: string;
+  base: string;
+  mergeBase: string;
+  patch: string;
+  filename: string;
+  previousFilename?: string;
+  failThread: boolean;
+  uncertainThread: boolean;
+  loseReply: boolean;
+}
 
-  const world = {
+function fixture() {
+  const reviews: GitHubReview[] = [];
+  const comments: (GitHubComment & { pull_request_review_id: number })[] = [];
+  const calls: { method: string; endpoint: string; body: GitHubPayload }[] = [];
+
+  const world: FixtureWorld = {
     user: "reviewer",
     head: snapshot.head,
     base: "c".repeat(40),
@@ -52,7 +78,11 @@ function fixture() {
     loseReply: false,
   };
 
-  async function request(method, endpoint, body) {
+  async function request(
+    method: string,
+    endpoint: string,
+    body: GitHubPayload = {},
+  ): Promise<JsonValue> {
     calls.push({ method, endpoint, body });
     const path = endpoint.split("?")[0];
 
@@ -90,6 +120,8 @@ function fixture() {
     }
 
     if (method === "POST" && path.endsWith("/reviews")) {
+      assert(body.body !== undefined && body.commit_id);
+
       const review = {
         id: reviews.length + 1,
         node_id: `review-${reviews.length + 1}`,
@@ -110,12 +142,14 @@ function fixture() {
         throw new GitHubValidationError("Location rejected");
 
       if (world.uncertainThread) throw new Error("Connection interrupted");
+      assert(body.variables);
       const input = body.variables.input;
 
       const review = reviews.find(
         (r) => r.node_id === input.pullRequestReviewId,
       );
 
+      assert(review);
       comments.push({
         id: comments.length + 1,
         pull_request_review_id: review.id,
@@ -138,8 +172,12 @@ function fixture() {
     }
 
     if (method === "PUT") {
-      reviews.find((r) => r.id === Number(path.split("/").at(-1))).body =
-        body.body;
+      const review = reviews.find(
+        (r) => r.id === Number(path.split("/").at(-1)),
+      );
+
+      assert(review && body.body !== undefined);
+      review.body = body.body;
 
       return {};
     }
@@ -149,6 +187,7 @@ function fixture() {
         (r) => r.id === Number(path.split("/").at(-2)),
       );
 
+      assert(review && body.body !== undefined);
       review.body = body.body;
       review.state =
         body.event === "APPROVE"
@@ -161,8 +200,12 @@ function fixture() {
     }
 
     if (method === "PATCH") {
-      comments.find((c) => c.id === Number(path.split("/").at(-1))).body =
-        body.body;
+      const comment = comments.find(
+        (c) => c.id === Number(path.split("/").at(-1)),
+      );
+
+      assert(comment && body.body !== undefined);
+      comment.body = body.body;
 
       return {};
     }
@@ -195,9 +238,9 @@ function fixture() {
   return { service, request, world, reviews, comments, calls, add };
 }
 
-const version = (state) =>
+const version = (state: ReviewState) =>
   JSON.stringify({
-    body: state.review.body,
+    body: state.review?.body ?? "",
     comments: state.comments.map((c) => [c.id, c.body]),
   });
 
@@ -218,7 +261,7 @@ describe("GitHub pending reviews", () => {
     expect(state.comments).toHaveLength(2);
     expect(reviewStateSchema.safeParse(state).success).toBe(true);
     expect(
-      f.calls.filter((c) => c.endpoint === "graphql")[1].body.variables.input,
+      f.calls.filter((c) => c.endpoint === "graphql")[1].body.variables?.input,
     ).toMatchObject({ side: "LEFT", startSide: "LEFT", startLine: 1, line: 2 });
   });
   it("does not duplicate a saved comment when its response is lost or the server reopens", async () => {
@@ -304,13 +347,13 @@ describe("GitHub pending reviews", () => {
       const result = await f.service.mutate({
         action: "submit",
         expectedUser: "reviewer",
-        reviewId: state.review.id,
+        reviewId: state.review!.id,
         event,
         expected: version(state),
       });
 
       expect(result.review).toBeNull();
-      expect(result.lastReview.commit_id).toBe(snapshot.head);
+      expect(result.lastReview!.commit_id).toBe(snapshot.head);
       expect(
         f.calls.filter((c) => c.endpoint.endsWith("/events")),
       ).toHaveLength(1);
@@ -429,12 +472,12 @@ it("preserves fallback recovery markers when editing the summary", async () => {
     action: "summary",
     expectedUser: "reviewer",
     body: "Revised summary",
-    expected: state.review.body,
+    expected: state.review!.body,
   });
 
-  expect(next.review.body).toContain(f.add.operationId);
+  expect(next.review!.body).toContain(f.add.operationId);
   await f.service.mutate({ ...f.add, fallback: true });
-  expect(f.reviews[0].body).toBe(next.review.body);
+  expect(f.reviews[0].body).toBe(next.review!.body);
 });
 
 it("can start an empty draft for an approval without inline comments", async () => {
@@ -450,12 +493,12 @@ it("can start an empty draft for an approval without inline comments", async () 
   const result = await f.service.mutate({
     action: "submit",
     expectedUser: "reviewer",
-    reviewId: state.review.id,
+    reviewId: state.review!.id,
     event: "APPROVE",
     expected: version(state),
   });
 
-  expect(result.lastReview.state).toBe("APPROVED");
+  expect(result.lastReview!.state).toBe("APPROVED");
 });
 
 describe("GitHub hunk coordinates", () => {
@@ -540,10 +583,27 @@ process.stdout.write(JSON.stringify({args:process.argv.slice(2),body:JSON.parse(
   try {
     const result = await githubRequest("POST", "graphql", {
       query: "mutation",
-      variables: { input: { body: "Literal $(text) `code`" } },
+      variables: {
+        input: {
+          body: "Literal $(text) `code`",
+          pullRequestReviewId: "review",
+          path: "file.ts",
+          side: "RIGHT",
+          line: 1,
+        },
+      },
     });
 
-    expect(result.args).toEqual([
+    const response = z
+      .object({
+        args: z.array(z.string()),
+        body: z.object({
+          variables: z.object({ input: z.object({ body: z.string() }) }),
+        }),
+      })
+      .parse(result);
+
+    expect(response.args).toEqual([
       "api",
       "--hostname",
       "github.com",
@@ -553,7 +613,7 @@ process.stdout.write(JSON.stringify({args:process.argv.slice(2),body:JSON.parse(
       "--input",
       "-",
     ]);
-    expect(result.body.variables.input.body).toBe("Literal $(text) `code`");
+    expect(response.body.variables.input.body).toBe("Literal $(text) `code`");
     await expect(githubRequest("POST", "invalid", {})).rejects.toBeInstanceOf(
       GitHubValidationError,
     );
@@ -592,8 +652,8 @@ it("submits a new review in one step and reconciles a lost submission response",
 
   await expect(service.mutate(action)).rejects.toThrow("Lost response");
   const state = await service.mutate(action);
-  expect(state.lastReview.state).toBe("APPROVED");
-  expect(state.lastReview.body).toContain("Looks good");
+  expect(state.lastReview!.state).toBe("APPROVED");
+  expect(state.lastReview!.body).toContain("Looks good");
   expect(f.calls.filter((c) => c.endpoint.endsWith("/events"))).toHaveLength(1);
 });
 
@@ -604,12 +664,12 @@ it("submits an edited summary with an existing pending review", async () => {
   const result = await f.service.mutate({
     action: "submit",
     expectedUser: "reviewer",
-    reviewId: state.review.id,
+    reviewId: state.review!.id,
     body: "Please adjust this",
     event: "REQUEST_CHANGES",
     expected: version(state),
   });
 
-  expect(result.lastReview.body).toBe("Please adjust this");
+  expect(result.lastReview!.body).toBe("Please adjust this");
   expect(f.reviews).toHaveLength(1);
 });

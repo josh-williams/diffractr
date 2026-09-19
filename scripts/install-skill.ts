@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 
 export function installSkill(
   destination = join(homedir(), ".agents/skills/diffractr"),
-) {
+): string {
   const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const target = resolve(destination);
 

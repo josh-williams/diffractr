@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { contextLayout } from "./context";
-import { indexChanges, unitDiff, type SourceFile } from "./review";
+import { contextLayout } from "./context.ts";
+import { indexChanges, unitDiff, type SourceFile } from "./review.ts";
 
 function fixture(gap: number) {
   const before = Array.from({ length: gap + 12 }, (_, i) => `line ${i}\n`);

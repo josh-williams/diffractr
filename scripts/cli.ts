@@ -1,4 +1,4 @@
-import { main } from "./workflow";
+import { main } from "./workflow.ts";
 
 try {
   await main(process.argv.slice(2));

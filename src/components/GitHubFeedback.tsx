@@ -5,7 +5,7 @@ import {
   reviewStateSchema,
   remoteCommentSchema,
   apiErrorSchema,
-} from "../core/github-feedback.mjs";
+} from "../core/github-feedback.ts";
 import { anchorSchema } from "../core/review";
 import type { Anchor, Comment, Snapshot } from "../core/review";
 import Dialog from "./Dialog";

@@ -4,17 +4,26 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { saveCapture, loadCapture, readAnalysis } from "./workflow.ts";
-import { snapshot, analysis } from "../src/examples/invitations";
+import { snapshot, analysis } from "../src/examples/invitations.ts";
 import {
   inventory,
   inventoryText,
   validateAnalysis,
-} from "../src/core/analysis";
-import { indexChanges } from "../src/core/review";
-import { snapshotSchema } from "../src/core/snapshot";
+} from "../src/core/analysis.ts";
+import { indexChanges } from "../src/core/review.ts";
+import { snapshotSchema } from "../src/core/snapshot.ts";
+import { z } from "zod";
 import { stringify } from "yaml";
 
-const dirs = [];
+const savedCaptureSchema = z.object({
+  version: z.number(),
+  digest: z.string(),
+  snapshot: snapshotSchema.extend({
+    inventory: snapshotSchema.shape.inventory.unwrap(),
+  }),
+});
+
+const dirs: string[] = [];
 
 afterEach(() => {
   for (const dir of dirs.splice(0))
@@ -33,17 +42,21 @@ it("saves, validates, and reopens analysis without recapturing the repository", 
   writeFileSync(path, stringify(analysis));
   expect(readAnalysis(loadCapture(dir), path).errors).toEqual([]);
 
-  const output = execFileSync("node", ["scripts/cli.mjs", "validate", dir], {
+  const output = execFileSync("node", ["scripts/cli.ts", "validate", dir], {
     encoding: "utf8",
   });
 
   expect(output).toContain("2 groups, 2 flags");
   expect(
-    execFileSync("node", ["scripts/cli.mjs", "inspect", dir, "--block", "B1"], {
+    execFileSync("node", ["scripts/cli.ts", "inspect", dir, "--block", "B1"], {
       encoding: "utf8",
     }),
   ).toContain('"id": "B1"');
-  const saved = JSON.parse(readFileSync(join(dir, "capture.json"), "utf8"));
+
+  const saved = savedCaptureSchema.parse(
+    JSON.parse(readFileSync(join(dir, "capture.json"), "utf8")),
+  );
+
   saved.snapshot.files[0].after = "corrupted";
   writeFileSync(join(dir, "capture.json"), JSON.stringify(saved));
   expect(() => loadCapture(dir)).toThrow("checksum");
@@ -87,7 +100,11 @@ it("preserves saved block IDs, row mappings and units across reopening and brows
 
   for (const f of authored.flags) f.anchor.block = `saved-${f.anchor.block}`;
   expect(validateAnalysis(reopened, authored).errors).toEqual([]);
-  const envelope = JSON.parse(readFileSync(join(dir, "capture.json"), "utf8"));
+
+  const envelope = savedCaptureSchema.parse(
+    JSON.parse(readFileSync(join(dir, "capture.json"), "utf8")),
+  );
+
   envelope.snapshot.inventory[0].rows[0].text = "modified inventory";
   writeFileSync(join(dir, "capture.json"), JSON.stringify(envelope));
   expect(() => loadCapture(dir)).toThrow("checksum");

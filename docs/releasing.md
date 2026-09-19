@@ -6,7 +6,7 @@ The workflow checks the tag and lockfile versions, runs lint, formatting checks 
 
 ## Release a new version
 
-Use Node 24 and npm 11.5.1 or newer for release work.
+Use Node 24.12+ within Node 24 and npm 11.5.1 or newer for release work.
 
 Start on `main` with a clean working tree and the intended changes committed. For a patch release:
 
@@ -25,7 +25,9 @@ If checks fail before publishing, fix the issue and prepare a new version/tag. I
 ## Testing an existing artifact
 
 ```sh
-node scripts/test-package.mjs /absolute/path/to/diffractr-<version>.tgz
+node scripts/test-package.ts /absolute/path/to/diffractr-<version>.tgz
 ```
 
 This leaves the supplied tarball in place. `npm run test:package` remains the convenience command that builds and tests a temporary tarball. The smoke test verifies the installed package version against the checkout, CLI execution, self-contained skill installation, capture, validation, and authenticated viewer serving.
+
+The Node 22.12 compatibility job runs this TypeScript test harness with `--experimental-strip-types`. Installed CLI and skill subprocesses run as plain JavaScript without that flag. Release and development commands use Node 24 with native type stripping enabled by default.

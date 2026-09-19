@@ -1,3 +1,6 @@
+import { z } from "zod";
+import type { ChildProcess } from "node:child_process";
+import { snapshotSchema } from "../src/core/snapshot.ts";
 import { execFileSync, spawn } from "node:child_process";
 import {
   mkdtempSync,
@@ -16,14 +19,14 @@ const temp = mkdtempSync(join(tmpdir(), "diffractr-package-"));
 
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 
-const run = (command, args, cwd = temp) =>
+const run = (command: string, args: string[], cwd = temp): string =>
   execFileSync(command, args, {
     cwd,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
 
-let server;
+let server: ChildProcess | undefined;
 
 try {
   const suppliedTarball = process.argv[2];
@@ -39,13 +42,29 @@ try {
             .map((path) => ({ path: path.replace(/^package\//, "") })),
         },
       ]
-    : JSON.parse(
-        run(
-          npm,
-          ["pack", "--ignore-scripts", "--json", "--pack-destination", temp],
-          root,
-        ),
-      );
+    : z
+        .array(
+          z.object({
+            filename: z.string(),
+            size: z.number(),
+            files: z.array(z.object({ path: z.string() })),
+          }),
+        )
+        .parse(
+          JSON.parse(
+            run(
+              npm,
+              [
+                "pack",
+                "--ignore-scripts",
+                "--json",
+                "--pack-destination",
+                temp,
+              ],
+              root,
+            ),
+          ),
+        );
 
   const tarball = suppliedTarball
     ? resolve(suppliedTarball)
@@ -60,12 +79,16 @@ try {
   );
   writeFileSync(join(temp, "package.json"), '{"private":true}');
   run(npm, ["install", "--offline", "--ignore-scripts", "--omit=dev", tarball]);
-  const manifest = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+
+  const manifest = z
+    .object({ name: z.string(), version: z.string() })
+    .parse(JSON.parse(readFileSync(join(root, "package.json"), "utf8")));
+
   const installed = join(temp, "node_modules", manifest.name);
 
-  const packagedManifest = JSON.parse(
-    readFileSync(join(installed, "package.json"), "utf8"),
-  );
+  const packagedManifest = z
+    .object({ name: z.string(), version: z.string() })
+    .parse(JSON.parse(readFileSync(join(installed, "package.json"), "utf8")));
 
   assert.equal(packagedManifest.name, manifest.name);
   assert.equal(packagedManifest.version, manifest.version);
@@ -111,9 +134,13 @@ try {
     capture,
   ]);
 
-  const { snapshot } = JSON.parse(
-    readFileSync(join(capture, "capture.json"), "utf8"),
-  );
+  const { snapshot } = z
+    .object({
+      snapshot: snapshotSchema.extend({
+        inventory: snapshotSchema.shape.inventory.unwrap(),
+      }),
+    })
+    .parse(JSON.parse(readFileSync(join(capture, "capture.json"), "utf8")));
 
   assert.equal(snapshot.files.length, 1);
   writeFileSync(
@@ -141,19 +168,22 @@ try {
     run(process.execPath, [helper, "inspect", capture, "--block", "B1"]),
     /example.txt/,
   );
-  server = spawn(
+
+  const runningServer = spawn(
     process.execPath,
     [join(skill, "runtime/dist/cli.mjs"), "open", capture, "--port", "0"],
     { cwd: temp, stdio: ["ignore", "pipe", "pipe"] },
   );
 
-  const address = await new Promise((resolveUrl, reject) => {
+  server = runningServer;
+
+  const address = await new Promise<string>((resolveUrl, reject) => {
     const timeout = setTimeout(() => {
       reject(new Error("Server startup timed out"));
     }, 10000);
 
     let output = "";
-    server.stdout.on("data", (chunk) => {
+    runningServer.stdout.on("data", (chunk) => {
       output += chunk;
 
       const match = output.match(
@@ -165,8 +195,8 @@ try {
         resolveUrl(match[0]);
       }
     });
-    server.once("error", reject);
-    server.once("exit", (code) => {
+    runningServer.once("error", reject);
+    runningServer.once("exit", (code) => {
       clearTimeout(timeout);
       reject(new Error(`Server exited: ${code}`));
     });
@@ -175,7 +205,9 @@ try {
   const url = new URL(address);
   const html = await (await fetch(url.origin)).text();
   assert.match(html, /diffractr-local-review/);
-  const asset = html.match(/src="([^"]+\.js)"/)[1];
+  const assetMatch = html.match(/src="([^"]+\.js)"/);
+  assert(assetMatch, "Viewer HTML must include a JavaScript asset");
+  const asset = assetMatch[1];
   assert.equal((await fetch(new URL(asset, url.origin))).status, 200);
   assert.equal((await fetch(`${url.origin}/api/review`)).status, 403);
 
@@ -183,14 +215,21 @@ try {
     headers: { Authorization: `Bearer ${url.hash.slice("#snapshot=".length)}` },
   });
 
-  assert.equal((await response.json()).analysis.title, "Update example");
+  const review = z
+    .object({ analysis: z.object({ title: z.string() }) })
+    .parse(await response.json());
+
+  assert.equal(review.analysis.title, "Update example");
   console.log(
     `Package smoke test passed: ${packed.filename}, ${packed.size} bytes packed. Offline install, skill runtime, capture, inspect, validate, authenticated review and viewer assets verified.`,
   );
 } finally {
   if (server && server.exitCode === null) {
-    server.kill();
-    await new Promise((resolveExit) => server.once("exit", resolveExit));
+    const closingServer = server;
+    closingServer.kill();
+    await new Promise<void>((resolveExit) =>
+      closingServer.once("exit", () => resolveExit()),
+    );
   }
 
   rmSync(temp, { recursive: true, force: true });

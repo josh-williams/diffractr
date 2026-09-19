@@ -1,3 +1,4 @@
+import assert from "node:assert/strict";
 import { afterEach, describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
 import {
@@ -11,19 +12,19 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { capture } from "./capture.mjs";
-import { serveSnapshot } from "./review.mjs";
-import { snapshotSchema } from "../src/core/snapshot";
-import { indexChanges, unitDiff, exportFeedback } from "../src/core/review";
+import { capture } from "./capture.ts";
+import { serveSnapshot } from "./review.ts";
+import { snapshotSchema } from "../src/core/snapshot.ts";
+import { indexChanges, unitDiff, exportFeedback } from "../src/core/review.ts";
 
-const roots = [];
+const roots: string[] = [];
 
-const git = (root, ...args) =>
+const git = (root: string, ...args: string[]): string =>
   execFileSync("git", args, { cwd: root, stdio: ["ignore", "pipe", "pipe"] })
     .toString()
     .trim();
 
-function write(root, path, data) {
+function write(root: string, path: string, data: string | Buffer): void {
   mkdirSync(dirname(join(root, path)), { recursive: true });
   writeFileSync(join(root, path), data);
 }
@@ -70,20 +71,19 @@ describe("local snapshot capture", () => {
       before: "const first = 1;\nconst second = 2;\n",
       after: "working\n",
     });
-    expect(result.files.at(-1).role).toBe("tests");
+    expect(result.files.at(-1)?.role).toBe("tests");
     expect(readFileSync(join(root, ".git/index"))).toEqual(index);
     expect(capture(root).id).toBe(result.id);
     const units = indexChanges(result);
 
-    for (const unit of units)
-      expect(
-        unitDiff(
-          result.files.find((f) => f.id === unit.fileId),
-          unit,
-          units,
-        ).hunks.length,
-      ).toBeGreaterThan(0);
+    for (const unit of units) {
+      const source = result.files.find((f) => f.id === unit.fileId);
+      assert(source);
+      expect(unitDiff(source, unit, units).hunks.length).toBeGreaterThan(0);
+    }
+
     const file = result.files.find((f) => f.path === "src/file.ts");
+    assert(file);
     expect(
       exportFeedback(result, [
         {
@@ -229,7 +229,7 @@ describe("local snapshot capture", () => {
   });
 });
 
-function basenameForTest(root) {
+function basenameForTest(root: string): string {
   return root.split("/").at(-1) + "-worktree";
 }
 
@@ -263,7 +263,8 @@ it("serves a fixed snapshot only with its token and same-origin host", async () 
       headers: { authorization: `Bearer ${token}` },
     });
 
-    expect((await response.json()).files[0].after).toBe("captured\n");
+    const served = snapshotSchema.parse(await response.json());
+    expect(served.files[0].after).toBe("captured\n");
     expect((await fetch(parsed.origin + "/.git/config")).status).toBe(404);
   } finally {
     await new Promise((resolve) => server.close(resolve));

@@ -77,7 +77,7 @@ Publishing is a separate step. See [Releasing](docs/releasing.md) for the ongoin
 
 ## Review a local repository without analysis
 
-Requires Node.js 22.12 or newer, npm, and Git.
+Requires Node.js 24.12 or newer within Node 24 (`nvm use`), npm, and Git.
 
 From the diffractr checkout:
 
@@ -87,7 +87,7 @@ npm run build
 npm run review -- --repo /path/to/repository
 ```
 
-Open the complete URL printed by the command. It serves the captured review at `127.0.0.1:5174`; the URL fragment grants access to that session's snapshot. Use `--port 5175` if the port is occupied. To invoke it from another repository after building, run `node /path/to/diffractr/scripts/review.mjs` there.
+Open the complete URL printed by the command. It serves the captured review at `127.0.0.1:5174`; the URL fragment grants access to that session's snapshot. Use `--port 5175` if the port is occupied. To invoke it from another repository after building, run `node /path/to/diffractr/scripts/review.ts` there.
 
 The command captures all net changes from the comparison branch's merge base to the current files on disk, including committed, staged, unstaged, and non-ignored untracked changes. It does not fetch, alter the index, or modify files. Each review is a fixed snapshot; run the command again to capture later edits. Feedback is retained per snapshot in browser storage on the same host and port.
 
@@ -123,7 +123,7 @@ Draft comments persist in this browser for the example snapshot. They are not se
 
 ## Development
 
-Use Node 24 for development and builds (`nvm use` reads `.nvmrc`), then run `npm ci`. The packaged CLI still supports Node 22.12.0 and newer.
+Use Node 24.12+ within Node 24 for development and builds (`nvm use` reads `.nvmrc`), then run `npm ci`. The packaged CLI still supports Node 22.12.0 and newer.
 
 ```sh
 npm run check    # Lint, formatting, tests, and type checking
@@ -163,6 +163,8 @@ The app uses React, TypeScript, Vite, Tailwind CSS 4, Pierre's diff components, 
 
 Vite serves and builds the React app; TypeScript checks types and Vitest runs tests. Oxfmt handles formatting. Oxlint and `@oxlint/plugins` are pinned to matching versions; upgrade them together.
 
-[Anti-slop](https://github.com/dmmulroy/anti-slop) is vendored under `tools/oxlint/anti-slop/`, with provenance and licenses included. All generic rules are enabled. The adjacent `.mjs` adapter loads its TypeScript source on Node 22.12 using the existing `tsx` dependency. Vendored rules and installed agent directories are excluded from linting and formatting; the project's own `skills/` source remains checked.
+The CLI, capture logic, local server, build tools, and script tests in `scripts/` are TypeScript and included in strict type checking. Source commands use native Node type stripping (`node scripts/cli.ts`); the build bundles `scripts/cli.ts` into `dist/cli.mjs`, so installed packages and skills still run with plain Node.js. The small skill launcher remains JavaScript for the same reason. `tsconfig.scripts.json` checks scripts and shared core modules with `NodeNext` resolution and `erasableSyntaxOnly`; local imports include `.ts` extensions. The frontend keeps Vite and bundler resolution for JSX. Native execution does not type-check; `npm run typecheck` checks both configurations.
+
+[Anti-slop](https://github.com/dmmulroy/anti-slop) is vendored under `tools/oxlint/anti-slop/`, with provenance and licenses included. All generic rules are enabled. The adjacent `.mjs` adapter imports its TypeScript source using native Node type stripping. Vendored rules and installed agent directories are excluded from linting and formatting; the project's own `skills/` source remains checked.
 
 Run lint, format checks, tests, and the build before submitting changes.

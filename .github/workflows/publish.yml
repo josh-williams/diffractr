@@ -28,11 +28,11 @@ jobs:
           node-version-file: .nvmrc
           registry-url: https://registry.npmjs.org
           package-manager-cache: false
+      - run: npm ci
       - name: Verify release version
         run: npm run release:check
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-      - run: npm ci
       - run: npm run check
       - run: npm run build
       - name: Pack once
@@ -42,7 +42,7 @@ jobs:
           npm pack --ignore-scripts --json > "$RUNNER_TEMP/pack.json"
           node --input-type=module -e 'import fs from "node:fs"; const [p] = JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP + "/pack.json")); fs.appendFileSync(process.env.GITHUB_OUTPUT, `tarball=${p.filename}\n`);'
       - name: Test packaged installation
-        run: node scripts/test-package.mjs "$TARBALL"
+        run: node scripts/test-package.ts "$TARBALL"
         env:
           TARBALL: ${{ steps.pack.outputs.tarball }}
       - name: Publish tested tarball
