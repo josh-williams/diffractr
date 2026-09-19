@@ -1,12 +1,26 @@
+import type { Snapshot } from "../src/core/review.ts";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { devNull, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import { captureCommits } from "./capture.mjs";
+import { captureCommits } from "./capture.ts";
 
-export function parsePullRequestUrl(input) {
+export interface PullRequestLocation {
+  owner: string;
+  repo: string;
+  number: string;
+  url: string;
+}
+
+export interface PullRequestCapture {
+  directory: string;
+  checkout: string;
+  snapshot: Snapshot & { pullRequest: NonNullable<Snapshot["pullRequest"]> };
+}
+
+export function parsePullRequestUrl(input: string): PullRequestLocation {
   const url = new URL(input);
 
   const match = url.pathname.match(
@@ -45,9 +59,12 @@ const ref = z.object({
 
 const metadata = z.object({ title: z.string(), base: ref, head: ref });
 
-export function capturePullRequest(input, output) {
+export function capturePullRequest(
+  input: string,
+  output?: string,
+): PullRequestCapture {
   const pr = parsePullRequestUrl(input);
-  let info;
+  let info: z.infer<typeof metadata>;
 
   try {
     info = metadata.parse(
@@ -86,7 +103,7 @@ export function capturePullRequest(input, output) {
     const hooks = join(directory, "empty-hooks");
     mkdirSync(hooks);
 
-    const git = (args) =>
+    const git = (args: string[]): string =>
       execFileSync(
         "git",
         [

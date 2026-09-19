@@ -1,5 +1,5 @@
-import { capturePullRequest } from "./pull-request.mjs";
-import { installSkill } from "./install-skill";
+import { capturePullRequest } from "./pull-request.ts";
+import { installSkill } from "./install-skill.ts";
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import {
@@ -11,8 +11,8 @@ import {
 } from "node:fs";
 import { resolve, join } from "node:path";
 import { tmpdir } from "node:os";
-import { capture } from "./capture.mjs";
-import { serveSnapshot } from "./server.mjs";
+import { capture } from "./capture.ts";
+import { serveSnapshot } from "./server.ts";
 import { snapshotSchema } from "../src/core/snapshot.ts";
 import {
   inventory,
@@ -21,6 +21,10 @@ import {
   validateAnalysis,
 } from "../src/core/analysis.ts";
 import { stringify } from "yaml";
+import type {
+  AuthoredAnalysis,
+  AnalysisValidation,
+} from "../src/core/analysis.ts";
 import type { Snapshot } from "../src/core/review.ts";
 
 type JsonValue =
@@ -48,10 +52,10 @@ function canonical(value: Snapshot | JsonValue | undefined): string {
   return JSON.stringify(value) ?? "null";
 }
 
-const digest = (snapshot: Snapshot) =>
+const digest = (snapshot: Snapshot | JsonValue): string =>
   createHash("sha256").update(canonical(snapshot)).digest("hex");
 
-export function saveCapture(snapshot: Snapshot, directory: string) {
+export function saveCapture(snapshot: Snapshot, directory: string): void {
   snapshot = snapshotSchema.parse(snapshot);
   snapshot = { ...snapshot, inventory: inventory(snapshot) };
 
@@ -90,9 +94,13 @@ export function saveCapture(snapshot: Snapshot, directory: string) {
 }
 
 export function loadCapture(directory: string): Snapshot {
-  const envelope = JSON.parse(
-    readFileSync(join(directory, "capture.json"), "utf8"),
-  );
+  const envelope = z
+    .object({
+      version: z.number(),
+      snapshot: z.json(),
+      digest: z.string().optional(),
+    })
+    .parse(JSON.parse(readFileSync(join(directory, "capture.json"), "utf8")));
 
   if (envelope.version !== 2)
     throw new Error(
@@ -109,7 +117,10 @@ export function loadCapture(directory: string): Snapshot {
     .parse(envelope.snapshot);
 }
 
-export function readAnalysis(snapshot: Snapshot, path: string) {
+export function readAnalysis(
+  snapshot: Snapshot,
+  path: string,
+): AnalysisValidation & { input: AuthoredAnalysis | undefined } {
   try {
     const input = parseAnalysis(readFileSync(path, "utf8"));
 
@@ -124,7 +135,7 @@ export function readAnalysis(snapshot: Snapshot, path: string) {
   }
 }
 
-export async function main(args: string[]) {
+export async function main(args: string[]): Promise<void> {
   const [command, ...rest] = args;
 
   if (command === "install-skill") {

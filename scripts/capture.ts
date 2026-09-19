@@ -1,16 +1,65 @@
+import type { FileRole, Snapshot, SourceFile } from "../src/core/review.ts";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lstatSync, readFileSync, readlinkSync, realpathSync } from "node:fs";
 import { basename, join, relative, sep } from "node:path";
 
+interface FileContent {
+  text?: string;
+  reason?: string;
+}
+
+interface CapturedFile extends FileContent {
+  mode: string;
+  digest?: string;
+  objectId?: Record<string, string | undefined>;
+}
+
+interface ResolvedBase {
+  ref: string;
+  oid: string;
+}
+
+interface TreeEntry {
+  mode: string;
+  oid: string;
+}
+
+interface FingerprintedFile extends SourceFile {
+  fingerprint?: (string | undefined)[];
+}
+
+interface CapturePass {
+  repository: string;
+  branch: string;
+  base: string;
+  mergeBase: string;
+  baseCommit: string;
+  head: string;
+  files: FingerprintedFile[];
+}
+
+export interface CaptureOptions {
+  base?: string;
+  afterRead?: (attempt: number) => void;
+}
+
+export interface CommitCapture {
+  mergeBase: string;
+  baseCommit: string;
+  head: string;
+  files: SourceFile[];
+}
+
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 
-const decode = (bytes) =>
+const decode = (bytes: Uint8Array): string =>
   new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 
-const hash = (value) => createHash("sha256").update(value).digest("hex");
+const hash = (value: string | Uint8Array): string =>
+  createHash("sha256").update(value).digest("hex");
 
-function git(root, args) {
+function git(root: string, args: string[]): Buffer {
   return execFileSync("git", args, {
     cwd: root,
     maxBuffer: 128 * 1024 * 1024,
@@ -19,7 +68,7 @@ function git(root, args) {
   });
 }
 
-function optional(root, args) {
+function optional(root: string, args: string[]): string | null {
   try {
     return git(root, args).toString().trim();
   } catch {
@@ -27,7 +76,7 @@ function optional(root, args) {
   }
 }
 
-function commit(root, ref) {
+function commit(root: string, ref: string): string | null {
   return optional(root, [
     "rev-parse",
     "--verify",
@@ -36,7 +85,7 @@ function commit(root, ref) {
   ]);
 }
 
-export function resolveBase(root, explicit) {
+export function resolveBase(root: string, explicit?: string): ResolvedBase {
   if (explicit) {
     const oid = commit(root, explicit);
 
@@ -73,8 +122,9 @@ export function resolveBase(root, explicit) {
   const candidates = ["main", "master"].flatMap((name) => {
     const remote = `origin/${name}`;
 
-    if (commit(root, remote))
-      return [{ ref: remote, oid: commit(root, remote) }];
+    const remoteOid = commit(root, remote);
+
+    if (remoteOid) return [{ ref: remote, oid: remoteOid }];
     const oid = commit(root, `refs/heads/${name}`);
 
     return oid ? [{ ref: name, oid }] : [];
@@ -88,7 +138,7 @@ export function resolveBase(root, explicit) {
   return candidates[0];
 }
 
-export function classify(path, text = "") {
+export function classify(path: string, text = ""): FileRole {
   if (
     /(^|\/)(package-lock\.json|pnpm-lock\.yaml|yarn\.lock|Cargo\.lock|go\.sum)$/.test(
       path,
@@ -115,7 +165,7 @@ export function classify(path, text = "") {
   return "other";
 }
 
-function textContent(bytes) {
+function textContent(bytes: Buffer): FileContent {
   if (bytes.length > MAX_FILE_BYTES)
     return { reason: "File exceeds the 2 MiB text limit" };
 
@@ -128,7 +178,7 @@ function textContent(bytes) {
   }
 }
 
-function workingFile(root, path) {
+function workingFile(root: string, path: string): CapturedFile | null {
   // Check each path component; link targets are outside the captured scope.
   const parts = path.split("/");
   let full = root;
@@ -140,7 +190,12 @@ function workingFile(root, path) {
     try {
       stat = lstatSync(full);
     } catch (error) {
-      if (error.code === "ENOENT" || error.code === "ENOTDIR") return null;
+      if (
+        error instanceof Error &&
+        "code" in error &&
+        (error.code === "ENOENT" || error.code === "ENOTDIR")
+      )
+        return null;
       throw error;
     }
 
@@ -170,7 +225,7 @@ function workingFile(root, path) {
         return {
           mode,
           reason: "File exceeds the 2 MiB text limit",
-          digest: `${stat.size}:${stat.mtimeNs ?? stat.mtimeMs}:${stat.ctimeMs}`,
+          digest: `${stat.size}:${stat.mtimeMs}:${stat.ctimeMs}`,
         };
       const bytes = readFileSync(full);
 
@@ -189,9 +244,11 @@ function workingFile(root, path) {
       return { mode, digest: hash(bytes), objectId, ...textContent(bytes) };
     }
   }
+
+  return null;
 }
 
-function readPass(root, baseRef) {
+function readPass(root: string, baseRef?: string): CapturePass {
   const head = commit(root, "HEAD");
 
   if (!head)
@@ -252,7 +309,7 @@ function readPass(root, baseRef) {
       .split("\0"),
   );
 
-  const files = [];
+  const files: FingerprintedFile[] = [];
 
   const objectFormat = git(root, ["rev-parse", "--show-object-format"])
     .toString()
@@ -276,7 +333,7 @@ function readPass(root, baseRef) {
       !changedPaths.has(path)
     )
       continue;
-    let before = null;
+    let before: CapturedFile | null = null;
 
     if (entry) {
       if (entry.mode === "160000") {
@@ -337,7 +394,7 @@ function readPass(root, baseRef) {
       continue;
     const notice = before?.reason || after?.reason;
 
-    const file = {
+    const file: FingerprintedFile = {
       id: hash(path).slice(0, 24),
       path,
       before: notice ? null : (before?.text ?? null),
@@ -363,7 +420,10 @@ function readPass(root, baseRef) {
   };
 }
 
-export function capture(repository, { base, afterRead } = {}) {
+export function capture(
+  repository: string,
+  { base, afterRead }: CaptureOptions = {},
+): Snapshot {
   let root;
 
   try {
@@ -396,7 +456,11 @@ export function capture(repository, { base, afterRead } = {}) {
 }
 
 // PR snapshots read Git objects, independent of checkout filters or later edits.
-export function captureCommits(root, base, head) {
+export function captureCommits(
+  root: string,
+  base: string,
+  head: string,
+): CommitCapture {
   const mergeBases = git(root, ["merge-base", "--all", base, head])
     .toString()
     .trim()
@@ -406,7 +470,7 @@ export function captureCommits(root, base, head) {
     throw new Error("PR comparison requires a single merge base.");
   const mergeBase = mergeBases[0];
 
-  function tree(ref) {
+  function tree(ref: string): Map<string, TreeEntry> {
     return new Map(
       decode(git(root, ["ls-tree", "-rz", "--full-tree", ref]))
         .split("\0")
@@ -420,7 +484,7 @@ export function captureCommits(root, base, head) {
     );
   }
 
-  function content(entry) {
+  function content(entry: TreeEntry | undefined): FileContent {
     if (!entry) return {};
 
     if (entry.mode === "160000")
@@ -440,7 +504,7 @@ export function captureCommits(root, base, head) {
 
   const beforeTree = tree(mergeBase);
   const afterTree = tree(head);
-  const files = [];
+  const files: FingerprintedFile[] = [];
 
   for (const path of [
     ...new Set([...beforeTree.keys(), ...afterTree.keys()]),
@@ -453,7 +517,7 @@ export function captureCommits(root, base, head) {
     const after = content(next);
     const notice = before.reason || after.reason;
 
-    const file = {
+    const file: FingerprintedFile = {
       id: hash(path).slice(0, 24),
       path,
       before: notice ? null : (before.text ?? null),
