@@ -9,10 +9,11 @@ import {
   rmSync,
   chmodSync,
   symlinkSync,
+  renameSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { capture } from "./capture.ts";
+import { capture, captureCommits } from "./capture.ts";
 import { serveSnapshot } from "./review.ts";
 import { snapshotSchema } from "../src/core/snapshot.ts";
 import { indexChanges, unitDiff, exportFeedback } from "../src/core/review.ts";
@@ -98,7 +99,7 @@ describe("local snapshot capture", () => {
       ]),
     ).toContain("> working");
   });
-  it("captures deletions, empty additions, modes, and renames as delete/add without losing files", () => {
+  it("captures empty additions, modes, and renames without losing files", () => {
     const root = fixture();
     git(root, "mv", "src/file.ts", "src/renamed.ts");
     write(root, "empty", "");
@@ -107,9 +108,16 @@ describe("local snapshot capture", () => {
     expect(result.files.map((f) => f.path)).toEqual([
       ".gitignore",
       "empty",
-      "src/file.ts",
       "src/renamed.ts",
     ]);
+    expect(result.files.find((f) => f.path === "src/renamed.ts")).toMatchObject(
+      {
+        oldPath: "src/file.ts",
+        renameSimilarity: 100,
+        before: "const first = 1;\nconst second = 2;\n",
+        after: "const first = 1;\nconst second = 2;\n",
+      },
+    );
     expect(result.files.find((f) => f.path === "empty")).toMatchObject({
       before: null,
       after: "",
@@ -269,4 +277,114 @@ it("serves a fixed snapshot only with its token and same-origin host", async () 
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
+});
+
+it("pairs edited untracked moves and committed renames identically without touching the index", () => {
+  const root = fixture();
+
+  const before = Array.from(
+    { length: 20 },
+    (_, i) => `export const value${i} = ${i};\n`,
+  ).join("");
+
+  write(root, "src/file.ts", before);
+  git(root, "add", ".");
+  git(root, "commit", "-m", "long source");
+  git(root, "branch", "-f", "main", "HEAD");
+  const path = 'src/new\nname\t".ts';
+  renameSync(join(root, "src/file.ts"), join(root, path));
+  write(root, path, before.replace("value10 = 10", "value10 = 100"));
+  chmodSync(join(root, path), 0o755);
+  git(root, "config", "diff.renames", "false");
+  const index = readFileSync(join(root, ".git/index"));
+  const local = capture(root);
+  expect(readFileSync(join(root, ".git/index"))).toEqual(index);
+  expect(local.files).toHaveLength(1);
+  expect(local.files[0]).toMatchObject({
+    oldPath: "src/file.ts",
+    path,
+    oldMode: "100644",
+    newMode: "100755",
+    before,
+  });
+  expect(local.files[0].renameSimilarity).toBeGreaterThanOrEqual(50);
+  expect(local.files[0].renameSimilarity).toBeLessThan(100);
+  expect(indexChanges(local)).toMatchObject([{ oldCount: 1, newCount: 1 }]);
+  expect(capture(root).id).toBe(local.id);
+  git(root, "add", ".");
+  git(root, "commit", "-m", "rename and edit");
+  expect(captureCommits(root, "main", "HEAD").files).toEqual(local.files);
+});
+
+it.each([
+  ["empty", Buffer.alloc(0)],
+  ["binary", Buffer.from([0, 1, 2, 255])],
+  ["large", Buffer.alloc(2 * 1024 * 1024 + 1, 65)],
+])("pairs exact %s renames in local and committed captures", (name, bytes) => {
+  const root = fixture();
+  write(root, name, bytes);
+  git(root, "add", ".");
+  git(root, "commit", "-m", "source");
+  git(root, "branch", "-f", "main", "HEAD");
+  renameSync(join(root, name), join(root, name + "-renamed"));
+  const local = capture(root);
+  expect(local.files).toHaveLength(1);
+  expect(local.files[0]).toMatchObject({
+    oldPath: name,
+    path: name + "-renamed",
+    renameSimilarity: 100,
+  });
+  expect(indexChanges(local)).toEqual([]);
+  git(root, "add", ".");
+  git(root, "commit", "-m", "rename");
+  expect(captureCommits(root, "main", "HEAD").files).toEqual(local.files);
+});
+
+it("pairs symbolic links without following their targets", () => {
+  const root = fixture();
+  symlinkSync("/nonexistent", join(root, "old-link"));
+  git(root, "add", ".");
+  git(root, "commit", "-m", "link");
+  git(root, "branch", "-f", "main", "HEAD");
+  renameSync(join(root, "old-link"), join(root, "new-link"));
+  expect(capture(root).files).toMatchObject([
+    {
+      oldPath: "old-link",
+      path: "new-link",
+      renameSimilarity: 100,
+      notice: "Symbolic link; target is not read",
+    },
+  ]);
+});
+
+it("keeps duplicate-content matching one-to-one and leaves copies and unrelated replacements unpaired", () => {
+  const root = fixture();
+  write(root, "a", "identical\n");
+  write(root, "b", "identical\n");
+  write(root, "deleted", "completely unrelated old text\n");
+  git(root, "add", ".");
+  git(root, "commit", "-m", "sources");
+  git(root, "branch", "-f", "main", "HEAD");
+  renameSync(join(root, "a"), join(root, "c"));
+  renameSync(join(root, "b"), join(root, "d"));
+  rmSync(join(root, "deleted"));
+  write(root, "added", "new content with no correspondence\n");
+  write(root, "copy.ts", readFileSync(join(root, "src/file.ts")));
+  const local = capture(root);
+  const renamed = local.files.filter((file) => file.oldPath);
+  expect(renamed).toHaveLength(2);
+  expect(new Set(renamed.map((file) => file.oldPath))).toEqual(
+    new Set(["a", "b"]),
+  );
+  expect(new Set(renamed.map((file) => file.path))).toEqual(
+    new Set(["c", "d"]),
+  );
+  expect(
+    local.files.find((file) => file.path === "copy.ts")?.oldPath,
+  ).toBeUndefined();
+  expect(
+    local.files.find((file) => file.path === "added")?.oldPath,
+  ).toBeUndefined();
+  expect(local.files.find((file) => file.path === "deleted")?.after).toBeNull();
+  expect(capture(root).files).toEqual(local.files);
 });

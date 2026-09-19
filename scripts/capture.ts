@@ -1,7 +1,19 @@
 import type { FileRole, Snapshot, SourceFile } from "../src/core/review.ts";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync, readlinkSync, realpathSync } from "node:fs";
+import {
+  lstatSync,
+  readFileSync,
+  readlinkSync,
+  realpathSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+  openSync,
+  closeSync,
+  constants,
+} from "node:fs";
+import { tmpdir } from "node:os";
 import { basename, join, relative, sep } from "node:path";
 
 interface FileContent {
@@ -10,6 +22,7 @@ interface FileContent {
 }
 
 interface CapturedFile extends FileContent {
+  bytes?: Buffer;
   mode: string;
   digest?: string;
   objectId?: Record<string, string | undefined>;
@@ -53,17 +66,220 @@ export interface CommitCapture {
 
 const MAX_FILE_BYTES = 2 * 1024 * 1024;
 
+interface Rename {
+  oldPath: string;
+  path: string;
+  similarity: number;
+}
+
+function renames(root: string, before: string, after: string): Rename[] {
+  const fields = decode(
+    git(root, [
+      "diff-tree",
+      "--no-commit-id",
+      "-r",
+      "--name-status",
+      "-z",
+      "--no-ext-diff",
+      "--no-textconv",
+      "--find-renames=50%",
+      "--rename-empty",
+      "-l1000",
+      before,
+      after,
+      "--",
+    ]),
+  ).split("\0");
+
+  const result: Rename[] = [];
+
+  for (let i = 0; i < fields.length - 1;) {
+    const status = fields[i++];
+    const path = fields[i++];
+
+    if (status.startsWith("R"))
+      result.push({
+        oldPath: path,
+        path: fields[i++],
+        similarity: Number(status.slice(1)),
+      });
+    else if (status.startsWith("C")) i++;
+  }
+
+  return result;
+}
+
+function pairRenames(
+  files: FingerprintedFile[],
+  pairs: Rename[],
+): FingerprintedFile[] {
+  const byPath = new Map(files.map((file) => [file.path, file]));
+
+  for (const pair of pairs) {
+    const old = byPath.get(pair.oldPath),
+      next = byPath.get(pair.path);
+
+    if (!old || !next || old.newMode !== null || next.oldMode !== null)
+      continue;
+    const notice = old.notice || next.notice;
+
+    const file: FingerprintedFile = {
+      ...next,
+      id: hash(pair.oldPath + "\0" + pair.path).slice(0, 24),
+      oldPath: pair.oldPath,
+      renameSimilarity: pair.similarity,
+      before: notice ? null : old.before,
+      after: notice ? null : next.after,
+      oldMode: old.oldMode,
+    };
+
+    if (notice) file.notice = notice;
+
+    if (old.fingerprint || next.fingerprint)
+      file.fingerprint = [old.fingerprint?.[0], next.fingerprint?.[1]];
+    byPath.delete(pair.oldPath);
+    byPath.set(pair.path, file);
+  }
+
+  return [...byPath.values()];
+}
+
+// Isolate both the index and object database. Hash captured bytes directly so
+// untracked destinations participate without checkout filters or a second read.
+function localRenames(
+  root: string,
+  files: FingerprintedFile[],
+  contents: Map<string, Buffer>,
+  beforeTree: Map<string, TreeEntry>,
+): FingerprintedFile[] {
+  const deleted = files.filter(
+    (file) => file.newMode === null && beforeTree.has(file.path),
+  );
+
+  const added = files.filter(
+    (file) =>
+      file.oldMode === null &&
+      (contents.has(file.path) ||
+        file.notice === "File exceeds the 2 MiB text limit"),
+  );
+
+  if (!deleted.length || !added.length) return files;
+  const directory = mkdtempSync(join(tmpdir(), "diffractr-renames-"));
+
+  try {
+    const format = git(root, ["rev-parse", "--show-object-format"])
+      .toString()
+      .trim();
+
+    git(directory, ["init", "--bare", `--object-format=${format}`, "."]);
+
+    const objects = git(root, [
+      "rev-parse",
+      "--path-format=absolute",
+      "--git-path",
+      "objects",
+    ])
+      .toString()
+      .trim();
+
+    writeFileSync(
+      join(directory, "objects/info/alternates"),
+      JSON.stringify(objects) + "\n",
+    );
+
+    function tree(
+      entries: FingerprintedFile[],
+      side: "oldMode" | "newMode",
+    ): string {
+      git(directory, ["read-tree", "--empty"]);
+
+      const records = entries
+        .map((file) => {
+          let oid = beforeTree.get(file.path)?.oid;
+
+          if (side === "newMode") {
+            const bytes = contents.get(file.path);
+
+            // Large destinations are streamed into temporary Git storage. Never
+            // load them as text or follow a link substituted during capture.
+            const fd = bytes
+              ? undefined
+              : openSync(
+                  join(root, file.path),
+                  constants.O_RDONLY | constants.O_NOFOLLOW,
+                );
+
+            try {
+              oid = execFileSync(
+                "git",
+                ["hash-object", "-w", "--stdin", "--no-filters"],
+                {
+                  cwd: directory,
+                  env: gitEnvironment(),
+                  input: bytes,
+                  stdio: [fd ?? "pipe", "pipe", "pipe"],
+                },
+              )
+                .toString()
+                .trim();
+
+              if (!bytes) file.fingerprint = [file.fingerprint?.[0], oid];
+            } finally {
+              if (fd !== undefined) closeSync(fd);
+            }
+          }
+
+          return `${file[side]} ${oid}\t${file.path}\0`;
+        })
+        .join("");
+
+      execFileSync("git", ["update-index", "-z", "--index-info"], {
+        cwd: directory,
+        env: gitEnvironment(),
+        input: records,
+      });
+
+      return git(directory, ["write-tree"]).toString().trim();
+    }
+
+    return pairRenames(
+      files,
+      renames(directory, tree(deleted, "oldMode"), tree(added, "newMode")),
+    );
+  } finally {
+    rmSync(directory, { recursive: true, force: true });
+  }
+}
+
 const decode = (bytes: Uint8Array): string =>
   new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 
 const hash = (value: string | Uint8Array): string =>
   createHash("sha256").update(value).digest("hex");
 
+function gitEnvironment(): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env, GIT_OPTIONAL_LOCKS: "0" };
+
+  // Commands target an explicit repository, including the disposable rename
+  // repository. Inherited Git routing must not redirect its index or objects.
+  for (const name of [
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+  ])
+    delete env[name];
+
+  return env;
+}
+
 function git(root: string, args: string[]): Buffer {
   return execFileSync("git", args, {
     cwd: root,
     maxBuffer: 128 * 1024 * 1024,
-    env: { ...process.env, GIT_OPTIONAL_LOCKS: "0" },
+    env: gitEnvironment(),
     stdio: ["ignore", "pipe", "pipe"],
   });
 }
@@ -199,12 +415,16 @@ function workingFile(root: string, path: string): CapturedFile | null {
       throw error;
     }
 
-    if (stat.isSymbolicLink())
+    if (stat.isSymbolicLink()) {
+      const bytes = Buffer.from(readlinkSync(full));
+
       return {
+        bytes,
         mode: "120000",
-        digest: hash(readlinkSync(full)),
+        digest: hash(bytes),
         reason: "Symbolic link; target is not read",
       };
+    }
 
     if (i < parts.length - 1 && !stat.isDirectory()) return null;
 
@@ -241,7 +461,13 @@ function workingFile(root: string, path: string): CapturedFile | null {
         ]),
       );
 
-      return { mode, digest: hash(bytes), objectId, ...textContent(bytes) };
+      return {
+        mode,
+        bytes,
+        digest: hash(bytes),
+        objectId,
+        ...textContent(bytes),
+      };
     }
   }
 
@@ -310,6 +536,7 @@ function readPass(root: string, baseRef?: string): CapturePass {
   );
 
   const files: FingerprintedFile[] = [];
+  const renameContents = new Map<string, Buffer>();
 
   const objectFormat = git(root, ["rev-parse", "--show-object-format"])
     .toString()
@@ -366,6 +593,7 @@ function readPass(root: string, baseRef?: string): CapturePass {
               reason: "File exceeds the 2 MiB text limit",
             }
           : {
+              bytes,
               mode: entry.mode,
               digest: hash(bytes),
               ...(entry.mode === "120000"
@@ -407,6 +635,8 @@ function readPass(root: string, baseRef?: string): CapturePass {
 
     if (notice) file.notice = notice;
     files.push(file);
+
+    if (!before && after?.bytes) renameContents.set(path, after.bytes);
   }
 
   return {
@@ -416,7 +646,7 @@ function readPass(root: string, baseRef?: string): CapturePass {
     mergeBase,
     baseCommit: base.oid,
     head,
-    files,
+    files: localRenames(root, files, renameContents, tree),
   };
 }
 
@@ -531,5 +761,10 @@ export function captureCommits(
     files.push(file);
   }
 
-  return { mergeBase, baseCommit: base, head, files };
+  return {
+    mergeBase,
+    baseCommit: base,
+    head,
+    files: pairRenames(files, renames(root, mergeBase, head)),
+  };
 }

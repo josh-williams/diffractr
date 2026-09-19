@@ -291,3 +291,70 @@ it("parses YAML markdown while rejecting duplicate keys and aliases", () => {
   expect(() => parseAnalysis("title: A\ntitle: B")).toThrow();
   expect(() => parseAnalysis("a: &x [1]\nb: *x")).toThrow();
 });
+
+it("requires rename ownership independently of edits and preserves mode metadata", () => {
+  const snapshot: Snapshot = {
+    ...source,
+    files: [
+      {
+        ...source.files[0],
+        oldPath: "src/settings.js",
+        renameSimilarity: 75,
+        oldMode: "100644",
+        newMode: "100755",
+      },
+    ],
+  };
+
+  const blocks = inventory(snapshot);
+  expect(blocks.map((block) => block.kind)).toEqual(["text", "metadata"]);
+  expect(blocks[1].notice).toContain(
+    'Renamed "src/settings.js" → "src/settings.ts"',
+  );
+  expect(blocks[1].notice).toContain("Git similarity 75%");
+  expect(blocks[1].notice).toContain("Mode 100644 → 100755");
+  const authored = documentFor(snapshot);
+  authored.groups[0].changes = [{ block: blocks[0].id }];
+  expect(validateAnalysis(snapshot, authored).errors).toContainEqual(
+    expect.stringContaining(`Unassigned ${blocks[1].id}`),
+  );
+  authored.groups.push({
+    title: "Rename",
+    description: "Move the file",
+    changes: [{ block: blocks[1].id }],
+  });
+  const resolved = validateAnalysis(snapshot, authored);
+  expect(resolved.errors).toEqual([]);
+  expect(resolved.analysis?.sections[0].metadataFileIds).toEqual([]);
+  expect(resolved.analysis?.sections[1].metadataFileIds).toEqual(["file"]);
+  authored.groups[0].changes.push({ block: blocks[1].id });
+  expect(validateAnalysis(snapshot, authored).errors).toContainEqual(
+    expect.stringContaining("assigned more than once"),
+  );
+  expect(inventoryText(snapshot)).toContain(
+    '"src/settings.js" → "src/settings.ts"',
+  );
+});
+
+it("keeps unchanged and empty renames visible with no text changes", () => {
+  for (const text of ["", "unchanged\n"]) {
+    const snapshot: Snapshot = {
+      ...source,
+      files: [
+        { ...source.files[0], oldPath: "old.ts", before: text, after: text },
+      ],
+    };
+
+    expect(indexChanges(snapshot)).toEqual([]);
+    expect(inventory(snapshot)).toMatchObject([
+      {
+        kind: "metadata",
+        rows: [],
+        notice: expect.stringContaining("Renamed"),
+      },
+    ]);
+    expect(validateAnalysis(snapshot, documentFor(snapshot)).errors).toEqual(
+      [],
+    );
+  }
+});
