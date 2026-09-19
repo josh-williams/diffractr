@@ -2,7 +2,7 @@ import { useTheme } from "./hooks/useTheme";
 import { useFeedbackStorage } from "./hooks/useFeedbackStorage";
 import { useReviewNavigation } from "./hooks/useReviewNavigation";
 import ReviewOverview from "./components/ReviewOverview";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   ChevronRight,
@@ -72,6 +72,22 @@ export default function App({
   const [fullFile, setFullFile] = useState<SourceFile | null>(null);
   const [copyStatus, setCopyStatus] = useState("");
   const { mainScrollRef, navigate } = useReviewNavigation();
+  const headerRef = useRef<HTMLElement | null>(null);
+  const [headerHeight, setHeaderHeight] = useState(51);
+
+  useEffect(() => {
+    const header = headerRef.current;
+
+    if (!header) return;
+
+    const observer = new ResizeObserver(() =>
+      setHeaderHeight(header.getBoundingClientRect().height),
+    );
+
+    observer.observe(header);
+
+    return () => observer.disconnect();
+  }, []);
 
   function commentAt(a: Anchor) {
     setAnchor(a);
@@ -114,15 +130,19 @@ export default function App({
   }
 
   return (
-    <div className="min-h-screen md:flex md:h-screen md:overflow-hidden md:overscroll-none bg-mist-50 dark:bg-mist-900 bg-linear-to-br from-violet-500/3 via-transparent to-cyan-500/3 text-sm text-mist-800 dark:text-mist-200">
+    <div className="min-h-dvh md:flex md:h-dvh md:overflow-hidden md:overscroll-none bg-mist-50 dark:bg-mist-900 bg-linear-to-br from-violet-500/3 via-transparent to-cyan-500/3 text-sm text-mist-800 dark:text-mist-200">
       <ReviewSidebar
         analysis={analysis}
         units={units}
         mainScrollRef={mainScrollRef}
         navigate={navigate}
+        headerHeight={headerHeight}
       />
-      <div className="min-w-0 md:h-full md:min-h-0 md:min-w-0 md:flex-1 md:flex md:flex-col">
-        <header className="flex min-h-12 flex-none flex-wrap items-center justify-between gap-2 border-b border-mist-200 bg-mist-50/95 px-4 py-2 backdrop-blur dark:border-mist-800 dark:bg-mist-900/95 md:px-6">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col md:h-full">
+        <header
+          ref={headerRef}
+          className="flex min-h-12 flex-none flex-wrap items-center justify-between gap-2 border-b border-mist-200 bg-mist-50/95 px-4 py-2 backdrop-blur dark:border-mist-800 dark:bg-mist-900/95 md:px-6"
+        >
           <div className="flex items-center gap-2 text-mist-500 dark:text-mist-400 [&_strong]:font-medium [&_strong]:text-mist-800 [&_strong]:dark:text-mist-200">
             <span>Reviews</span>
             <ChevronRight size={14} />
@@ -186,7 +206,7 @@ export default function App({
         )}
         <main
           ref={mainScrollRef}
-          className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 md:p-6"
+          className="min-h-0 flex-1 p-4 md:overflow-y-auto md:overscroll-contain md:p-6"
         >
           <div className="mb-4 flex flex-wrap items-center gap-2 font-sans text-xs text-mist-500 dark:text-mist-400">
             <GitBranch size={14} />

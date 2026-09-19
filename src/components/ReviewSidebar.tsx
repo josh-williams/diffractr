@@ -8,11 +8,13 @@ export default function ReviewSidebar({
   units,
   mainScrollRef,
   navigate,
+  headerHeight,
 }: {
   analysis: Analysis | null;
   units: ChangeUnit[];
   mainScrollRef: RefObject<HTMLElement | null>;
   navigate: (id: string) => void;
+  headerHeight: number;
 }) {
   const [page, setPage] = useState("overview");
   useEffect(() => {
@@ -29,9 +31,10 @@ export default function ReviewSidebar({
     const update = () => {
       frame = 0;
       let active: HTMLElement | undefined = parts[0];
+      const activeThreshold = scrollContainer.getBoundingClientRect().top + 64;
 
       for (const part of parts) {
-        if (part.getBoundingClientRect().top <= 120) active = part;
+        if (part.getBoundingClientRect().top <= activeThreshold) active = part;
       }
 
       if (
@@ -64,9 +67,17 @@ export default function ReviewSidebar({
   }, [mainScrollRef, analysis]);
 
   return (
-    <aside className="border-b border-mist-200 dark:border-mist-800 bg-mist-100/80 dark:bg-mist-950/30 p-2 md:overflow-y-auto md:h-full md:min-h-0 md:shrink-0 md:w-60 md:border-r md:border-b-0">
-      <Brand />
-      <nav aria-label="Review navigation" className="space-y-1 text-sm">
+    <aside className="min-h-0 shrink-0 border-b border-mist-200 dark:border-mist-800 bg-mist-100/80 dark:bg-mist-950/30 md:overflow-y-auto md:overscroll-contain md:h-full md:w-60 md:border-r md:border-b-0">
+      <div
+        className="flex items-center px-2"
+        style={{ height: headerHeight - 1 }}
+      >
+        <Brand />
+      </div>
+      <nav
+        aria-label="Review navigation"
+        className="hidden space-y-1 p-2 text-sm md:block"
+      >
         <button
           className={`sidebar-item flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-2 text-left ${page === "overview" ? "text-mist-950 dark:text-mist-100" : "text-mist-600 dark:text-mist-400 hover:bg-mist-200/60 dark:hover:bg-mist-800/70"}`}
           aria-current={page === "overview" ? "location" : undefined}

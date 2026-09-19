@@ -4,7 +4,6 @@ export function useReviewNavigation() {
   const mainScrollRef = useRef<HTMLElement | null>(null);
   const scrollFrame = useRef(0);
   useEffect(() => {
-    const container = mainScrollRef.current;
     const cancel = () => cancelAnimationFrame(scrollFrame.current);
 
     const onKey = (event: KeyboardEvent) => {
@@ -22,16 +21,16 @@ export function useReviewNavigation() {
         cancel();
     };
 
-    container?.addEventListener("wheel", cancel, { passive: true });
-    container?.addEventListener("touchstart", cancel, {
+    window.addEventListener("wheel", cancel, { passive: true });
+    window.addEventListener("touchstart", cancel, {
       passive: true,
     });
     window.addEventListener("keydown", onKey);
 
     return () => {
       cancel();
-      container?.removeEventListener("wheel", cancel);
-      container?.removeEventListener("touchstart", cancel);
+      window.removeEventListener("wheel", cancel);
+      window.removeEventListener("touchstart", cancel);
       window.removeEventListener("keydown", onKey);
     };
   }, []);
@@ -41,7 +40,10 @@ export function useReviewNavigation() {
     const target = document.getElementById(`review-${id}`);
 
     if (!target) return;
-    const container = mainScrollRef.current;
+
+    const container = window.matchMedia("(min-width: 768px)").matches
+      ? mainScrollRef.current
+      : document.scrollingElement;
 
     if (!container) return;
     const start = container.scrollTop;
@@ -54,7 +56,9 @@ export function useReviewNavigation() {
             Math.min(
               start +
                 target.getBoundingClientRect().top -
-                container.getBoundingClientRect().top -
+                (container === document.scrollingElement
+                  ? 0
+                  : container.getBoundingClientRect().top) -
                 16,
               container.scrollHeight - container.clientHeight,
             ),
