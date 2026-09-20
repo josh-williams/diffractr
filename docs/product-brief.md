@@ -48,7 +48,7 @@ Use Tailwind CSS 4 with a custom Mist palette for application surfaces: an equal
 
 - Progress tracking at section and file-within-section level.
 - Refreshing reviews across revisions, preserving progress, and identifying what needs another look while an agent continues working. Details will be designed after the core model works.
-- GitHub PR import and native review submission as a future milestone.
+- Reading published GitHub conversations, replying, and resolving threads.
 - A cloud-hosted product as a future milestone: browser-based review with cloud analysis and storage, without requiring local CLI invocation. Automatic review triggers and deployment details remain to be designed.
 - Additional coding-agent integrations.
 - Live Q&A during review and manual regrouping/reordering by the reviewer.
@@ -83,4 +83,4 @@ Flags surface consequential, non-obvious details, including possible defects enc
 
 ## GitHub PR input
 
-The local skill and CLI accept a GitHub.com pull-request URL using the user's existing GitHub CLI authentication. Capture uses an isolated checkout for agent inspection and immutable merge-base-to-head Git objects for source facts. Saved reviews show the PR title, link, and exact revisions, and remain readable offline. Public, private, and fork PRs are supported where the account has access. Posting feedback to GitHub and cloud execution remain separate follow-ups.
+The local skill and CLI accept a GitHub.com pull-request URL using the user's existing GitHub CLI authentication. Capture uses an isolated checkout for agent inspection and immutable merge-base-to-head Git objects for source facts. Saved reviews show the PR title, link, and exact revisions, and remain readable offline. Public, private, and fork PRs are supported where the account has access. PR feedback is saved to GitHub pending reviews as it is authored and can be submitted as comments, approvals, or requests for changes. New commits do not block submission; unsupported inline anchors have an explicit summary fallback. Cloud execution remains a separate follow-up.

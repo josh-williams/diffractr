@@ -8,7 +8,7 @@ Source facts and authored analysis are separate. Source types and diff projectio
 - **Block inventory:** deterministic snapshot-local references `B1`, `B2`, etc. Text blocks originate from contiguous edit regions with up to three context lines bounded by neighboring changes. Rows have explicit numbers, operations, content, and original coordinates. Renames, non-text, mode-only, and empty-file changes have whole-change blocks without rows.
 - **Authored analysis:** snapshot reference, overview, ordered groups with Markdown descriptions and selections, and text flags with selections. It never supplies source text or invents group/flag IDs.
 - **Resolved review:** generated navigation IDs, group ownership, source-coordinate projections, file membership, and flag placement, derived from validated analysis.
-- **Feedback:** snapshot identity, file, side, inclusive source range, and reviewer text, persisted in browser storage and exported as Markdown.
+- **Feedback:** snapshot identity, file, side, inclusive source range, and reviewer text, persisted in browser storage and exported as Markdown for local inputs. PR inputs save drafts to the signed-in user’s pending GitHub review.
 
 The Codex skill runs within the user's existing agent session. The agent can inspect any relevant context using its normal tools; selections always refer to the saved capture.
 
@@ -46,6 +46,20 @@ Tests exercise mixed Git states, worktrees, snapshots, checksum failures, YAML p
 ## Pull-request snapshots
 
 Version-2 captures may include `baseCommit` and `pullRequest` (`url`, `number`, `title`), alongside `head` and `mergeBase`. Older local captures remain valid without these fields. PR source comes directly from committed Git objects; the adjacent checkout is only inspection context. The snapshot identity binds the repository, revisions, source, and PR metadata. Analysis and ownership use the same inventory and validation as local captures.
+
+## GitHub feedback
+
+The loopback server uses `gh api` for review operations; credentials never enter the browser. Reads and writes require the session bearer token. Writes additionally require the exact loopback Origin, JSON content, a bounded body, and a validated action. The repository and PR destination come from the captured snapshot, not client-supplied routes. Mutations are serialized within each server and verify the signed-in account.
+
+The diff gutter offers a comment button on hover. Clicking it opens an editor below that line; dragging it across lines creates a same-side range comment. The editor stays inline while saving, including errors and the explicit summary fallback. Only one new comment editor is active at a time.
+
+GitHub is authoritative for pending review comments and the review summary. Saving a comment creates or reuses a pending review; draft edits/deletions are restricted to that user’s pending review. Published comments from all authors are loaded too, and the signed-in user can edit their own published comments. All review comments are paginated, including comments outside the captured source. Comments with an original or current revision matching the snapshot and an explicit side are projected inline. Pending comment coordinates are read from GitHub review threads because the review-comments REST endpoint omits them. Other drafts remain editable in Finish review.
+
+Original source coordinates map to GitHub line/side ranges. GitHub’s comparison hunks validate placements, including rename paths; expanded context, unavailable patches, or incompatible review revisions offer an explicit summary fallback with quoted code. GitHub may reject older-revision placements. Confirmed comments are checked against their original commit; a newly created comment placed on another commit is removed before offering fallback. A newer PR head does not block submission or trigger automatic coordinate migration.
+
+Comment bodies and review summaries contain no tracking markers. The running server tracks operation IDs in memory to avoid repeating saves within that session. A lost comment response can be reconciled against newly returned comment IDs and matching source coordinates/body; an unconfirmed write is not repeated automatically. This retry history does not survive a server restart, so check GitHub before resending an uncertain save after reopening. Legacy markers are hidden when reading and removed when the body is edited. Submission addresses a specific pending review ID and checks its summary and comments against what the user saw. It never creates a second review as an automatic retry. Summary/comment edits reject observed external changes. These are preflight checks, not atomic locks against concurrent edits on GitHub or another local server.
+
+The browser retains recovery copies of unsaved comment, edit, and summary text within its current origin. Saved drafts are not mirrored to a local feedback artifact. Remote drafts refresh on window focus and on demand. A review submitted or removed elsewhere is reflected on refresh. Reply creation, thread resolution, and automatic cross-revision migration remain outside this workflow.
 
 ## Renames
 

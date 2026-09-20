@@ -89,6 +89,7 @@
     @apply shrink-0;
   }
   diffs-container {
+    --diffs-comment-bg: theme(colors.blue.600);
     /* Bridge Tailwind's palette into Pierre's shadow-DOM theme. */
     --diffs-bg: theme(colors.mist.950);
     --diffs-bg-buffer-override: theme(colors.mist.900);

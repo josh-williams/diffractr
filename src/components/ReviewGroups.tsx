@@ -1,3 +1,5 @@
+import { contextLayout } from "../core/context";
+import { unitDiff } from "../core/review";
 import { Flag } from "lucide-react";
 import type {
   Analysis,
@@ -17,6 +19,11 @@ export default function ReviewGroups({
   sourceUnits,
   comments,
   commentAt,
+  onEditComment,
+  editContainer,
+  composerAnchor,
+  composerOwner,
+  setComposerContainer,
   setFullFile,
 }: {
   snapshot: Snapshot;
@@ -24,9 +31,16 @@ export default function ReviewGroups({
   units: ChangeUnit[];
   sourceUnits: ChangeUnit[];
   comments: Comment[];
-  commentAt: (anchor: Anchor) => void;
+  commentAt: (anchor: Anchor, owner: string) => void;
+  editContainer: HTMLElement | null;
+  onEditComment: (comment: Comment, container: HTMLElement) => void;
+  composerAnchor: Anchor | null;
+  composerOwner: string | null;
+  setComposerContainer: (node: HTMLDivElement | null) => void;
   setFullFile: (file: SourceFile) => void;
 }) {
+  let composerPlaced = false;
+
   return (
     <>
       {(analysis?.sections ?? [null]).map((section, sectionIndex) => {
@@ -80,20 +94,71 @@ export default function ReviewGroups({
                 {flags.length} {flags.length === 1 ? "flag" : "flags"}
               </span>
             </div>
-            {groups.map((group) => (
-              <DiffCard
-                key={`${id}:${group.file.id}`}
-                {...group}
-                allUnits={sourceUnits}
-                flags={flags.filter((f) => f.fileId === group.file.id)}
-                comments={comments.filter((c) => c.fileId === group.file.id)}
-                onComment={commentAt}
-                onFullFile={setFullFile}
-              />
-            ))}
+            {groups.map((group) => {
+              const owner = `${id}:${group.file.id}`;
+
+              const matches =
+                composerAnchor?.fileId === group.file.id &&
+                (composerOwner === owner ||
+                  (composerOwner === null &&
+                    !composerPlaced &&
+                    containsAnchor(
+                      group.file,
+                      group.units,
+                      sourceUnits,
+                      composerAnchor,
+                    )));
+
+              if (matches) composerPlaced = true;
+
+              return (
+                <DiffCard
+                  key={`${id}:${group.file.id}`}
+                  {...group}
+                  allUnits={sourceUnits}
+                  flags={flags.filter((f) => f.fileId === group.file.id)}
+                  comments={comments.filter((c) => c.fileId === group.file.id)}
+                  onEditComment={onEditComment}
+                  editContainer={editContainer}
+                  onComment={(anchor) => commentAt(anchor, owner)}
+                  composerAnchor={matches ? composerAnchor : null}
+                  revealComposer={composerOwner === null}
+                  setComposerContainer={setComposerContainer}
+                  onFullFile={setFullFile}
+                />
+              );
+            })}
           </section>
         );
       })}
     </>
+  );
+}
+
+function containsAnchor(
+  file: SourceFile,
+  units: ChangeUnit[],
+  sourceUnits: ChangeUnit[],
+  anchor: Anchor,
+) {
+  const expanded = Object.fromEntries(
+    units.flatMap((unit) => [
+      [`${unit.id}:before`, true],
+      [`${unit.id}:after`, true],
+    ]),
+  );
+
+  const layout = contextLayout(file, units, sourceUnits, expanded);
+
+  return units.some((unit, index) =>
+    unitDiff(file, unit, sourceUnits, layout[index]).hunks.some((hunk) => {
+      const start =
+        anchor.side === "additions" ? hunk.additionStart : hunk.deletionStart;
+
+      const count =
+        anchor.side === "additions" ? hunk.additionCount : hunk.deletionCount;
+
+      return anchor.end >= start && anchor.end < start + count;
+    }),
   );
 }

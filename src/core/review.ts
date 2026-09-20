@@ -51,6 +51,9 @@ export interface Anchor {
 }
 
 export interface Comment extends Anchor {
+  author?: string;
+  editable?: boolean;
+  pending?: boolean;
   id: string;
   snapshotId: string;
   body: string;
