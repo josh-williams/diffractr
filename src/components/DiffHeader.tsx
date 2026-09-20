@@ -1,20 +1,11 @@
-import {
-  ChevronDown,
-  ChevronRight,
-  FileCode2,
-  MessageSquare,
-  Maximize2,
-} from "lucide-react";
-import type { SelectedLineRange } from "@pierre/diffs";
-import type { SourceFile, Anchor } from "../core/review";
+import { ChevronDown, ChevronRight, FileCode2, Maximize2 } from "lucide-react";
+import type { SourceFile } from "../core/review";
 import { fileLabel } from "../core/review";
 
 export default function DiffHeader({
   file,
   collapsed,
   toggle,
-  selection,
-  onComment,
   onFullFile,
   added,
   removed,
@@ -23,8 +14,6 @@ export default function DiffHeader({
   file: SourceFile;
   collapsed: boolean;
   toggle: () => void;
-  selection: SelectedLineRange | null;
-  onComment: (anchor: Anchor) => void;
   onFullFile: (file: SourceFile) => void;
   added: number;
   removed: number;
@@ -64,23 +53,6 @@ export default function DiffHeader({
         >
           <Maximize2 size={15} />
         </button>
-        {!collapsed && selection && (
-          <button
-            className="inline-flex items-center gap-1.5 rounded border border-mist-700 px-2 py-1 text-xs text-mist-200 hover:bg-mist-800"
-            onClick={() =>
-              onComment({
-                fileId: file.id,
-                side: selection.side ?? "additions",
-                start: Math.min(selection.start, selection.end),
-                end: Math.max(selection.start, selection.end),
-              })
-            }
-          >
-            <MessageSquare size={13} /> Comment on lines{" "}
-            {Math.min(selection.start, selection.end)}–
-            {Math.max(selection.start, selection.end)}
-          </button>
-        )}
       </header>
       {metadata && file.oldPath && (
         <p className="border-b border-mist-800 px-3 py-1.5 text-xs text-mist-400">

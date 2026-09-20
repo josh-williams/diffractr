@@ -1,3 +1,4 @@
+import { readThreadLocations } from "./github-comment-locations.ts";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { z } from "zod";
@@ -80,6 +81,7 @@ export interface ReviewState {
   state: string;
   review: GitHubReview | null;
   comments: GitHubComment[];
+  publishedComments: GitHubComment[];
   lastReview: GitHubReview | null;
   fallback?: string;
 }
@@ -172,8 +174,6 @@ export async function githubRequest(
   }
 }
 
-const marker = (id: string) => `<!-- diffractr:${id} -->`;
-
 export const cleanBody = (body: string) =>
   body.replace(/\n?<!-- diffractr:[a-f0-9-]+ -->/g, "");
 
@@ -223,6 +223,13 @@ export function createReviewService(
   const root = `repos/${pr.owner}/${pr.repo}/pulls/${pr.number}`;
   let tail: Promise<ReviewState | void> = Promise.resolve();
 
+  const additions = new Map<
+    string,
+    { body: string; reviewId: number; complete: boolean }
+  >();
+
+  const submissions = new Map<string, { id: number; signature: string }>();
+
   async function pages<T extends z.ZodType>(
     path: string,
     schema: T,
@@ -250,12 +257,30 @@ export function createReviewService(
         (r) => r.state === "PENDING" && r.user.login === user.login,
       ) ?? null;
 
-    const comments = review
+    let comments = review
       ? await pages(
           `${root}/reviews/${review.id}/comments`,
           remoteCommentSchema,
         )
       : [];
+
+    if (comments.some((comment) => !comment.side || !comment.original_line)) {
+      const locations = await readThreadLocations(
+        request,
+        pr.owner,
+        pr.repo,
+        Number(pr.number),
+      );
+
+      comments = comments.map((comment) => ({
+        ...comment,
+        ...locations.get(comment.node_id ?? ""),
+      }));
+    }
+
+    const publishedComments = (
+      await pages(`${root}/comments`, remoteCommentSchema)
+    ).filter((comment) => !comments.some((draft) => draft.id === comment.id));
 
     return {
       user: user.login,
@@ -265,6 +290,7 @@ export function createReviewService(
       state: info.state,
       review,
       comments,
+      publishedComments,
       lastReview:
         reviews
           .filter((r) => r.user.login === user.login && r.state !== "PENDING")
@@ -286,9 +312,9 @@ export function createReviewService(
 
   async function verifySaved(
     state: ReviewState,
-    tag: string,
+    commentId: number,
   ): Promise<ReviewState> {
-    const comment = state.comments.find((c) => c.body.includes(tag));
+    const comment = state.comments.find((c) => c.id === commentId);
 
     if (!comment)
       throw new Error(
@@ -312,32 +338,23 @@ export function createReviewService(
     action: Extract<ReviewAction, { action: "add" }>,
     state: ReviewState,
   ): Promise<ReviewState> {
-    const tag = marker(action.operationId);
+    const previous = additions.get(action.operationId);
 
-    const saved = state.comments.find((c) => c.body.includes(tag));
-
-    if (saved && cleanBody(saved.body) !== action.body)
-      throw new Error(
-        "An earlier version of this comment is already saved. Edit that draft in Finish review; your unsaved text is preserved here.",
-      );
-
-    if (saved) return verifySaved(state, tag);
-
-    if (state.review?.body.includes(tag)) return state;
-
-    if (state.lastReview) {
-      const submittedComments = await pages(
-        `${root}/reviews/${state.lastReview.id}/comments`,
-        remoteCommentSchema,
-      );
-
-      if (
-        state.lastReview.body.includes(tag) ||
-        submittedComments.some((c) => c.body.includes(tag))
-      )
+    if (previous) {
+      if (previous.body !== action.body)
         throw new Error(
-          "This comment is already in a submitted review. Refresh to view that review before starting another comment.",
+          "An earlier version of this comment was attempted. Check GitHub before starting a new comment.",
         );
+
+      if (state.review?.id !== previous.reviewId)
+        throw new Error(
+          "This comment may already be in a submitted review. Refresh to check GitHub before starting another comment.",
+        );
+
+      if (previous.complete) return state;
+      throw new Error(
+        "The previous save could not be confirmed. Check GitHub before discarding this draft and starting a new comment.",
+      );
     }
 
     const file = snapshot.files.find((f) => f.id === action.fileId);
@@ -387,6 +404,8 @@ export function createReviewService(
     }
 
     const review = await pending(state);
+    const attempt = { body: action.body, reviewId: review.id, complete: false };
+    additions.set(action.operationId, attempt);
 
     if (action.fallback) {
       const quote = content
@@ -395,9 +414,9 @@ export function createReviewService(
         .map((line) => `> ${line}`)
         .join("\n");
 
-      const entry = `${tag}\n\n${file.path} · ${action.side === "additions" ? "New" : "Old"} lines ${action.start}–${action.end} · ${snapshot.head}\n\n${quote}\n\n${action.body}`;
+      const entry = `${file.path} · ${action.side === "additions" ? "New" : "Old"} lines ${action.start}–${action.end} · ${snapshot.head}\n\n${quote}\n\n${action.body}`;
       await request("PUT", `${root}/reviews/${review.id}`, {
-        body: [review.body, entry].filter(Boolean).join("\n\n"),
+        body: [cleanBody(review.body), entry].filter(Boolean).join("\n\n"),
       });
     } else {
       const side = action.side === "additions" ? "RIGHT" : "LEFT";
@@ -407,7 +426,7 @@ export function createReviewService(
       const thread: ReviewThread = {
         pullRequestReviewId: review.node_id,
         path: location.filename,
-        body: `${action.body}\n${tag}`,
+        body: cleanBody(action.body),
         side,
         line: action.end,
       };
@@ -416,6 +435,20 @@ export function createReviewService(
         thread.startLine = action.start;
         thread.startSide = side;
       }
+
+      const existingIds = new Set(state.comments.map((comment) => comment.id));
+
+      const findSaved = (next: ReviewState) =>
+        next.comments.find(
+          (comment) =>
+            !existingIds.has(comment.id) &&
+            comment.body === cleanBody(action.body) &&
+            comment.path === location.filename &&
+            comment.side === side &&
+            comment.original_line === action.end &&
+            (comment.original_start_line ?? comment.original_line) ===
+              action.start,
+        );
 
       let savedState;
 
@@ -429,17 +462,35 @@ export function createReviewService(
       } catch (error) {
         savedState = await read();
 
-        if (!savedState.comments.some((c) => c.body.includes(tag))) {
-          if (error instanceof GitHubValidationError)
+        if (!findSaved(savedState)) {
+          if (error instanceof GitHubValidationError) {
+            additions.delete(action.operationId);
+
             return { ...savedState, fallback: error.message };
+          }
+
           throw error;
         }
       }
 
-      return verifySaved(savedState, tag);
+      const saved = findSaved(savedState);
+
+      if (!saved)
+        throw new Error(
+          "GitHub has not confirmed the draft comment yet. Check GitHub before retrying.",
+        );
+      const result = await verifySaved(savedState, saved.id);
+
+      if (result.fallback) additions.delete(action.operationId);
+      else attempt.complete = true;
+
+      return result;
     }
 
-    return read();
+    const result = await read();
+    attempt.complete = true;
+
+    return result;
   }
 
   async function updateSummary(
@@ -451,9 +502,8 @@ export function createReviewService(
         "The summary changed on GitHub. Refresh before saving; your text is still here.",
       );
     const review = await pending(state);
-    const markers = review.body.match(/<!-- diffractr:[a-f0-9-]+ -->/g) ?? [];
     await request("PUT", `${root}/reviews/${review.id}`, {
-      body: [cleanBody(action.body), ...markers].filter(Boolean).join("\n"),
+      body: cleanBody(action.body),
     });
 
     return read();
@@ -463,16 +513,25 @@ export function createReviewService(
     action: Extract<ReviewAction, { action: "submit" }>,
     state: ReviewState,
   ): Promise<ReviewState> {
-    const tag = action.operationId ? marker(action.operationId) : "";
+    const key = action.operationId ?? `review:${action.reviewId}`;
+    const signature = JSON.stringify(action);
+    const previous = submissions.get(key);
 
-    if (tag && state.lastReview?.body.includes(tag)) return state;
+    if (previous && previous.signature !== signature)
+      throw new Error(
+        "This submission attempt changed. Refresh the review before trying again.",
+      );
+    const previousId = previous?.id;
+
+    if (previousId !== undefined && state.lastReview?.id === previousId)
+      return state;
 
     const resumed =
+      previousId !== undefined &&
+      state.review?.id === previousId &&
       action.reviewId === null &&
-      tag &&
-      state.review?.body.includes(tag) &&
-      cleanBody(state.review.body) === action.body &&
-      !state.comments.length;
+      cleanBody(state.review.body) === cleanBody(action.body ?? "") &&
+      state.comments.length === 0;
 
     if (
       !resumed &&
@@ -486,7 +545,7 @@ export function createReviewService(
         "The review changed on GitHub. Reopen Finish review to check it before submitting.",
       );
 
-    if (!state.review && !tag)
+    if (!state.review && !action.operationId)
       throw new Error("A submission ID is required to start a review.");
     let review = state.review;
 
@@ -494,16 +553,12 @@ export function createReviewService(
       review = reviewSchema.parse(
         await request("POST", `${root}/reviews`, {
           commit_id: snapshot.head,
-          body: [action.body ?? "", tag].filter(Boolean).join("\n"),
+          body: cleanBody(action.body ?? ""),
         }),
       );
 
-    const markers = review.body.match(/<!-- diffractr:[a-f0-9-]+ -->/g) ?? [];
-
-    const body =
-      action.body === undefined
-        ? review.body
-        : [cleanBody(action.body), ...markers].filter(Boolean).join("\n");
+    submissions.set(key, { id: review.id, signature });
+    const body = cleanBody(action.body ?? review.body);
 
     await request("POST", `${root}/reviews/${review.id}/events`, {
       event: action.event,
@@ -517,11 +572,13 @@ export function createReviewService(
     action: Extract<ReviewAction, { action: "edit" | "delete" }>,
     state: ReviewState,
   ) {
-    if (!state.review)
-      throw new Error(
-        "The pending review was submitted or deleted elsewhere. Refresh to see its current state.",
-      );
-    const comment = state.comments.find((c) => c.id === action.id);
+    const comment =
+      state.comments.find((c) => c.id === action.id) ??
+      (action.action === "edit"
+        ? state.publishedComments.find(
+            (c) => c.id === action.id && c.user?.login === state.user,
+          )
+        : undefined);
 
     if (!comment || cleanBody(comment.body) !== action.expected)
       throw new Error(
@@ -536,15 +593,23 @@ export function createReviewService(
     state: ReviewState,
   ): Promise<ReviewState> {
     const comment = editableComment(action, state);
-    await request(
-      "PATCH",
-      `repos/${pr.owner}/${pr.repo}/pulls/comments/${comment.id}`,
-      {
-        body:
-          action.body +
-          (comment.body.match(/\n?<!-- diffractr:[a-f0-9-]+ -->/)?.[0] ?? ""),
-      },
-    );
+
+    const body = cleanBody(action.body);
+
+    if (
+      comment.node_id &&
+      state.comments.some((draft) => draft.id === comment.id)
+    ) {
+      await request("POST", "graphql", {
+        query: `mutation { updatePullRequestReviewComment(input: {pullRequestReviewCommentId: ${JSON.stringify(comment.node_id)}, body: ${JSON.stringify(body)}}) { pullRequestReviewComment { id } } }`,
+      });
+    } else {
+      await request(
+        "PATCH",
+        `repos/${pr.owner}/${pr.repo}/pulls/comments/${comment.id}`,
+        { body },
+      );
+    }
 
     return read();
   }

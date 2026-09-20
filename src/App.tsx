@@ -1,3 +1,6 @@
+import { Toaster } from "sonner";
+import { submitOnCommandEnter } from "./components/submitOnCommandEnter";
+import { createPortal } from "react-dom";
 import GitHubFeedback from "./components/GitHubFeedback";
 import { useTheme } from "./hooks/useTheme";
 import { useFeedbackStorage } from "./hooks/useFeedbackStorage";
@@ -75,16 +78,35 @@ export default function App({
   } = useFeedbackStorage(snapshot);
 
   const [githubComments, setGithubComments] = useState<Comment[]>([]);
+
+  const [editRequest, setEditRequest] = useState<{
+    comment: Comment;
+    container: HTMLElement;
+  } | null>(null);
+
+  const [editDraft, setEditDraft] = useState("");
   const [githubCount, setGithubCount] = useState(0);
   const comments = snapshot.pullRequest ? githubComments : localComments;
   const [anchor, setAnchor] = useState<Anchor | null>(null);
+  const [composerOwner, setComposerOwner] = useState<string | null>(null);
+
+  const [composerContainer, setComposerContainer] =
+    useState<HTMLDivElement | null>(null);
+
   const [draft, setDraft] = useState("");
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [fullFile, setFullFile] = useState<SourceFile | null>(null);
   const [copyStatus, setCopyStatus] = useState("");
   const { mainScrollRef, navigate } = useReviewNavigation();
 
-  function commentAt(a: Anchor) {
+  function commentAt(a: Anchor, owner: string | null = null) {
+    if (anchor) {
+      composerContainer?.querySelector("textarea")?.focus();
+
+      return;
+    }
+
+    setComposerOwner(owner);
     setAnchor(a);
     setDraft("");
   }
@@ -126,6 +148,29 @@ export default function App({
 
   return (
     <div className="min-h-screen md:flex md:h-screen md:overflow-hidden md:overscroll-none bg-mist-50 dark:bg-mist-900 bg-linear-to-br from-violet-500/3 via-transparent to-cyan-500/3 text-sm text-mist-800 dark:text-mist-200">
+      <Toaster
+        theme={theme}
+        position="bottom-right"
+        duration={4000}
+        toastOptions={{
+          style: {
+            boxShadow: "none",
+            fontFamily: "var(--font-sans)",
+            background:
+              theme === "dark"
+                ? "var(--color-mist-900)"
+                : "var(--color-mist-50)",
+            color:
+              theme === "dark"
+                ? "var(--color-mist-200)"
+                : "var(--color-mist-800)",
+            borderColor:
+              theme === "dark"
+                ? "var(--color-mist-700)"
+                : "var(--color-mist-300)",
+          },
+        }}
+      />
       <ReviewSidebar
         analysis={analysis}
         units={units}
@@ -200,7 +245,11 @@ export default function App({
         {snapshot.pullRequest && (
           <GitHubFeedback
             snapshot={snapshot}
+            editRequest={editRequest}
+            closeEdit={() => setEditRequest(null)}
             anchor={anchor}
+            composerContainer={composerContainer}
+            resumeAnchor={commentAt}
             closeAnchor={() => setAnchor(null)}
             open={feedbackOpen}
             onOpen={() => setFeedbackOpen(true)}
@@ -268,26 +317,36 @@ export default function App({
             sourceUnits={sourceUnits}
             comments={comments}
             commentAt={commentAt}
+            editContainer={editRequest?.container ?? null}
+            onEditComment={(comment, container) => {
+              setEditDraft(comment.body);
+              setEditRequest({ comment, container });
+            }}
+            composerAnchor={anchor}
+            composerOwner={composerOwner}
+            setComposerContainer={setComposerContainer}
             setFullFile={setFullFile}
           />
         </main>
       </div>
-      {anchor && !snapshot.pullRequest && (
-        <Dialog title="Leave feedback" onClose={() => setAnchor(null)}>
+      {anchor &&
+        composerContainer &&
+        !snapshot.pullRequest &&
+        createPortal(
           <form
+            onKeyDown={submitOnCommandEnter}
             className="p-3 [&>label]:mb-2 [&>label]:block [&>textarea]:w-full [&>textarea]:rounded [&>textarea]:border [&>textarea]:border-mist-300 [&>textarea]:dark:border-mist-700 [&>textarea]:bg-white [&>textarea]:dark:bg-mist-900 [&>textarea]:p-2 [&>textarea]:outline-blue-600"
             onSubmit={(e) => {
               e.preventDefault();
               saveComment();
             }}
           >
-            <div className="mb-3 rounded bg-mist-100 dark:bg-mist-900 p-2 font-sans text-xs leading-5 text-mist-600 dark:text-mist-400 wrap-anywhere">
-              {snapshot.files.find((f) => f.id === anchor.fileId)?.path}
-              <br />
-              {anchor.side === "additions" ? "New" : "Old"} lines {anchor.start}
-              –{anchor.end}
-            </div>
-            <label htmlFor="comment">What should change?</label>
+            <label htmlFor="comment">
+              Add a comment on {anchor.side === "additions" ? "new" : "old"}{" "}
+              {anchor.start === anchor.end
+                ? `line ${anchor.start}`
+                : `lines ${anchor.start}–${anchor.end}`}
+            </label>
             <textarea
               id="comment"
               autoFocus
@@ -296,21 +355,70 @@ export default function App({
               placeholder="Describe the behavior or decision you want revisited…"
               rows={5}
             />
-            <div className="flex flex-wrap items-center justify-end gap-3 border-t border-mist-200 dark:border-mist-800 p-3 [&>button]:inline-flex [&>button]:items-center [&>button]:gap-2 [&>span]:mr-auto [&>span]:text-xs [&>span]:text-mist-500 [&>span]:dark:text-mist-400">
+            <div className="flex flex-wrap items-center justify-end gap-3 pt-2 [&>button]:inline-flex [&>button]:items-center [&>button]:gap-2 [&>span]:mr-auto [&>span]:text-xs [&>span]:text-mist-500 [&>span]:dark:text-mist-400">
               <button type="button" onClick={() => setAnchor(null)}>
                 Cancel
               </button>
               <button
                 type="submit"
+                data-shortcut-submit
                 className="inline-flex items-center justify-center gap-2 rounded bg-blue-700 px-3 py-1.5 text-sm font-medium text-white enabled:hover:bg-blue-600"
                 disabled={!draft.trim()}
               >
                 Save feedback
               </button>
             </div>
-          </form>
-        </Dialog>
-      )}
+          </form>,
+          composerContainer,
+        )}
+      {editRequest &&
+        !snapshot.pullRequest &&
+        createPortal(
+          <form
+            className="mt-2 space-y-2"
+            onKeyDown={submitOnCommandEnter}
+            onSubmit={(event) => {
+              event.preventDefault();
+
+              if (!editDraft.trim()) return;
+              setComments(
+                comments.map((comment) =>
+                  comment.id === editRequest.comment.id
+                    ? { ...comment, body: editDraft.trim() }
+                    : comment,
+                ),
+              );
+              setEditRequest(null);
+            }}
+          >
+            <textarea
+              aria-label="Edit comment"
+              autoFocus
+              className="block w-full rounded border border-mist-300 bg-white p-2 text-mist-800 outline-blue-600 dark:border-mist-700 dark:bg-mist-900 dark:text-mist-200"
+              rows={4}
+              value={editDraft}
+              onChange={(event) => setEditDraft(event.target.value)}
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className="rounded border border-mist-300 bg-white px-3 py-1.5 dark:border-mist-700 dark:bg-mist-900"
+                onClick={() => setEditRequest(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                data-shortcut-submit
+                disabled={!editDraft.trim()}
+                className="rounded bg-blue-700 px-3 py-1.5 text-white disabled:opacity-50"
+              >
+                Update comment
+              </button>
+            </div>
+          </form>,
+          editRequest.container,
+        )}
       {feedbackOpen && !snapshot.pullRequest && (
         <Dialog
           title={`Your feedback (${comments.length})`}
@@ -344,7 +452,7 @@ export default function App({
                   </article>
                 ))}
               </div>
-              <div className="flex flex-wrap items-center justify-end gap-3 border-t border-mist-200 dark:border-mist-800 p-3 [&>button]:inline-flex [&>button]:items-center [&>button]:gap-2 [&>span]:mr-auto [&>span]:text-xs [&>span]:text-mist-500 [&>span]:dark:text-mist-400">
+              <div className="flex flex-wrap items-center justify-end gap-3 pt-2 [&>button]:inline-flex [&>button]:items-center [&>button]:gap-2 [&>span]:mr-auto [&>span]:text-xs [&>span]:text-mist-500 [&>span]:dark:text-mist-400">
                 <span role="status">{copyStatus}</span>
                 <button type="button" onClick={download}>
                   <Download size={15} />

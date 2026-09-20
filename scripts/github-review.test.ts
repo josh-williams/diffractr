@@ -111,6 +111,17 @@ function fixture() {
           ],
         };
 
+      if (path === "repos/acme/project/pulls/3/comments")
+        return structuredClone(
+          comments.filter((comment) =>
+            reviews.some(
+              (review) =>
+                review.id === comment.pull_request_review_id &&
+                review.state !== "PENDING",
+            ),
+          ),
+        );
+
       if (path.endsWith("/comments"))
         return structuredClone(
           comments.filter(
@@ -153,6 +164,7 @@ function fixture() {
       comments.push({
         id: comments.length + 1,
         pull_request_review_id: review.id,
+        user: { login: world.user },
         body: input.body,
         path: input.path,
         side: input.side,
@@ -264,11 +276,11 @@ describe("GitHub pending reviews", () => {
       f.calls.filter((c) => c.endpoint === "graphql")[1].body.variables?.input,
     ).toMatchObject({ side: "LEFT", startSide: "LEFT", startLine: 1, line: 2 });
   });
-  it("does not duplicate a saved comment when its response is lost or the server reopens", async () => {
+  it("does not duplicate a saved comment when its response is lost in the same session", async () => {
     const f = fixture();
     f.world.loseReply = true;
     expect((await f.service.mutate(f.add)).comments).toHaveLength(1);
-    await createReviewService(snapshot, f.request).mutate(f.add);
+    await f.service.mutate(f.add);
     expect(f.comments).toHaveLength(1);
     await expect(
       f.service.mutate({ ...f.add, body: "Changed locally" }),
@@ -358,7 +370,7 @@ describe("GitHub pending reviews", () => {
         f.calls.filter((c) => c.endpoint.endsWith("/events")),
       ).toHaveLength(1);
       await expect(f.service.mutate(f.add)).rejects.toThrow(
-        "already in a submitted review",
+        "may already be in a submitted review",
       );
     },
   );
@@ -381,7 +393,7 @@ describe("GitHub pending reviews", () => {
       expected: f.add.body,
       body: "Updated",
     });
-    expect(f.comments[0].body).toContain("Updated\n<!-- diffractr:");
+    expect(f.comments[0].body).toBe("Updated");
     await f.service.mutate({
       action: "delete",
       expectedUser: "reviewer",
@@ -464,7 +476,7 @@ it("removes an incorrectly placed draft and offers fallback, including after a l
   expect(f.comments).toHaveLength(0);
 });
 
-it("preserves fallback recovery markers when editing the summary", async () => {
+it("keeps fallback and edited summaries free of recovery markers", async () => {
   const f = fixture();
   const state = await f.service.mutate({ ...f.add, fallback: true });
 
@@ -475,7 +487,8 @@ it("preserves fallback recovery markers when editing the summary", async () => {
     expected: state.review!.body,
   });
 
-  expect(next.review!.body).toContain(f.add.operationId);
+  expect(next.review!.body).toBe("Revised summary");
+  expect(state.review!.body).not.toContain("<!-- diffractr:");
   await f.service.mutate({ ...f.add, fallback: true });
   expect(f.reviews[0].body).toBe(next.review!.body);
 });
@@ -672,4 +685,64 @@ it("submits an edited summary with an existing pending review", async () => {
 
   expect(result.lastReview!.body).toBe("Please adjust this");
   expect(f.reviews).toHaveLength(1);
+});
+
+it("keeps submitted comments visible and permits editing only your own", async () => {
+  const f = fixture();
+  await f.service.mutate(f.add);
+  f.reviews[0].state = "COMMENTED";
+  let state = await f.service.read();
+  expect(state.comments).toHaveLength(0);
+  expect(state.publishedComments).toHaveLength(1);
+  state = await f.service.mutate({
+    action: "edit",
+    expectedUser: "reviewer",
+    id: 1,
+    expected: f.add.body,
+    body: "Published edit",
+  });
+  expect(state.publishedComments[0].body).toContain("Published edit");
+  f.comments[0].user = { login: "review-bot" };
+  expect((await f.service.read()).publishedComments[0].user?.login).toBe(
+    "review-bot",
+  );
+  await expect(
+    f.service.mutate({
+      action: "edit",
+      expectedUser: "reviewer",
+      id: 1,
+      expected: "Published edit",
+      body: "Not mine",
+    }),
+  ).rejects.toThrow("changed on GitHub");
+});
+
+it("writes clean bodies and removes legacy markers on edit", async () => {
+  const f = fixture();
+  await f.service.mutate(f.add);
+  expect(f.comments[0].body).toBe(f.add.body);
+  f.comments[0].body += `\n<!-- diffractr:${f.add.operationId} -->`;
+  await f.service.mutate({
+    action: "edit",
+    id: 1,
+    body: "Clean",
+    expected: f.add.body,
+    expectedUser: "reviewer",
+  });
+  expect(f.comments[0].body).toBe("Clean");
+});
+
+it("does not repeat an unconfirmed comment write", async () => {
+  const f = fixture();
+  f.world.uncertainThread = true;
+  await expect(f.service.mutate(f.add)).rejects.toThrow(
+    "Connection interrupted",
+  );
+  const writes = f.calls.filter((call) => call.endpoint === "graphql").length;
+  await expect(f.service.mutate(f.add)).rejects.toThrow(
+    "previous save could not be confirmed",
+  );
+  expect(f.calls.filter((call) => call.endpoint === "graphql")).toHaveLength(
+    writes,
+  );
 });

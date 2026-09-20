@@ -1,3 +1,6 @@
+import { toast } from "sonner";
+import { submitOnCommandEnter } from "./submitOnCommandEnter";
+import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import {
@@ -62,7 +65,11 @@ function recoverEdits(key: string) {
 
 export default function GitHubFeedback({
   snapshot,
+  editRequest,
+  closeEdit,
   anchor,
+  composerContainer,
+  resumeAnchor,
   closeAnchor,
   open,
   onOpen,
@@ -71,7 +78,11 @@ export default function GitHubFeedback({
   onCount,
 }: {
   snapshot: Snapshot;
+  editRequest: { comment: Comment; container: HTMLElement } | null;
+  closeEdit: () => void;
   anchor: Anchor | null;
+  composerContainer: HTMLDivElement | null;
+  resumeAnchor: (anchor: Anchor) => void;
   closeAnchor: () => void;
   open: boolean;
   onOpen: () => void;
@@ -84,6 +95,10 @@ export default function GitHubFeedback({
   const [draft, setDraft] = useState<Draft>(
     () => recover(key) ?? { body: "", operationId: "", anchor: null },
   );
+
+  useEffect(() => {
+    if (draft.anchor && !anchor) resumeAnchor(draft.anchor);
+  }, [draft.anchor, anchor, resumeAnchor]);
 
   const [state, setState] = useState<ReviewState | null>(null);
   const [error, setError] = useState("");
@@ -98,6 +113,20 @@ export default function GitHubFeedback({
   );
 
   const [editText, setEditText] = useState(recovery.editText);
+  useEffect(() => {
+    if (!editRequest) return;
+
+    const comment = [
+      ...(state?.comments ?? []),
+      ...(state?.publishedComments ?? []),
+    ].find((comment) => String(comment.id) === editRequest.comment.id);
+
+    if (comment) {
+      setEditing(comment);
+      setEditText(clean(comment.body));
+    }
+    // Initialize only when the user opens an editor; refreshes must preserve their text.
+  }, [editRequest]);
 
   const [event, setEvent] = useState<"COMMENT" | "APPROVE" | "REQUEST_CHANGES">(
     "COMMENT",
@@ -133,10 +162,6 @@ export default function GitHubFeedback({
   }, [key, summary, summaryBase, editing, editText]);
   const locked = useRef(false);
   const readVersion = useRef(0);
-
-  const [recoveredOpen, setRecoveredOpen] = useState(() =>
-    Boolean(recover(key)?.body),
-  );
 
   const onCommentsRef = useRef(onComments);
   useEffect(() => {
@@ -175,15 +200,20 @@ export default function GitHubFeedback({
     setState(result);
     onCount(result.comments.length);
     onCommentsRef.current(
-      result.comments.flatMap((c) => {
-        const file = snapshot.files.find((f) => f.path === c.path);
+      [...result.comments, ...result.publishedComments].flatMap((c) => {
+        const file = snapshot.files.find(
+          (f) => f.path === c.path || f.oldPath === c.path,
+        );
 
         // Older/external comments remain visible in the review dialog without guessing locations.
-        if (!file || c.original_commit_id !== snapshot.head) return [];
+        if (!file) return [];
+        const original = c.original_commit_id === snapshot.head;
+
+        if (!original && c.commit_id !== snapshot.head) return [];
 
         if (!c.side) return [];
         const side = c.side === "LEFT" ? "deletions" : "additions";
-        const end = c.original_line;
+        const end = original ? c.original_line : c.line;
 
         if (!end) return [];
 
@@ -193,7 +223,12 @@ export default function GitHubFeedback({
             snapshotId: snapshot.id,
             fileId: file.id,
             side,
-            start: c.original_start_line ?? end,
+            start: (original ? c.original_start_line : c.start_line) ?? end,
+            author: c.user?.login ?? result.user,
+            pending: result.comments.some((draft) => draft.id === c.id),
+            editable:
+              result.comments.some((draft) => draft.id === c.id) ||
+              c.user?.login === result.user,
             end,
             body: clean(c.body),
           } satisfies Comment,
@@ -311,9 +346,8 @@ export default function GitHubFeedback({
 
     updateDraft({ body: "", operationId: "", anchor: null });
     setFallback("");
-    setRecoveredOpen(false);
     closeAnchor();
-    setNotice("Saved to GitHub as a draft.");
+    toast.success("Saved to GitHub as a draft.");
   }
 
   async function submit() {
@@ -334,14 +368,12 @@ export default function GitHubFeedback({
     if (result) {
       setSummary(null);
       setSubmissionId(crypto.randomUUID());
-      setNotice("Review submitted to GitHub.");
+      toast.success("Review submitted to GitHub.");
       close();
     }
   }
 
-  const composer = Boolean(
-    anchor || (!open && recoveredOpen && draft.body && draft.anchor),
-  );
+  const composer = Boolean(anchor && composerContainer);
 
   return (
     <>
@@ -350,7 +382,8 @@ export default function GitHubFeedback({
           className={control}
           onClick={() => {
             close();
-            setRecoveredOpen(true);
+
+            if (draft.anchor) resumeAnchor(draft.anchor);
           }}
         >
           Resume unsaved comment
@@ -374,22 +407,16 @@ export default function GitHubFeedback({
           New commits are available. Reviewing {snapshot.head?.slice(0, 7)}.
         </div>
       )}
-      {composer && (
-        <Dialog
-          title="Leave feedback"
-          onClose={() => {
-            setRecoveredOpen(false);
-            closeAnchor();
-          }}
-        >
-          <div className="space-y-3 p-4">
-            <p className="text-xs text-mist-500">
-              {snapshot.files.find((f) => f.id === activeAnchor?.fileId)?.path}{" "}
-              · {activeAnchor?.side === "additions" ? "New" : "Old"} lines{" "}
-              {activeAnchor?.start}–{activeAnchor?.end}
-            </p>
+      {composer &&
+        composerContainer &&
+        createPortal(
+          <div className="space-y-2 p-3" onKeyDown={submitOnCommandEnter}>
             <label className="block">
-              Comment
+              Add a comment on{" "}
+              {activeAnchor?.side === "additions" ? "new" : "old"}{" "}
+              {activeAnchor?.start === activeAnchor?.end
+                ? `line ${activeAnchor?.start}`
+                : `lines ${activeAnchor?.start}–${activeAnchor?.end}`}
               <textarea
                 autoFocus
                 className={`${control} mt-2 w-full`}
@@ -437,20 +464,22 @@ export default function GitHubFeedback({
                 Discard
               </button>
               <button
-                className={control}
+                className="rounded bg-blue-700 px-3 py-1.5 font-medium text-white enabled:hover:bg-blue-600 disabled:opacity-50"
+                data-shortcut-submit
                 disabled={busy || !state || !draft.body.trim()}
                 onClick={() => void save()}
               >
                 {busy ? "Saving…" : "Save draft to GitHub"}
               </button>
             </div>
-          </div>
-        </Dialog>
-      )}
+          </div>,
+          composerContainer,
+        )}
 
       <div
         ref={popoverRef}
         id="finish-review-popover"
+        onKeyDown={submitOnCommandEnter}
         popover="auto"
         onBeforeToggle={(e) => {
           if (e.newState !== "open") return;
@@ -562,6 +591,7 @@ export default function GitHubFeedback({
           <footer className="flex items-center gap-3 border-t border-mist-200 p-3 dark:border-mist-800">
             <button
               type="submit"
+              data-shortcut-submit
               className="rounded bg-blue-700 px-3 py-1.5 font-medium text-white enabled:hover:bg-blue-600 disabled:opacity-50"
               disabled={
                 busy ||
@@ -590,6 +620,69 @@ export default function GitHubFeedback({
           </footer>
         </form>
       </div>
+      {editRequest &&
+        editing &&
+        createPortal(
+          <form
+            className="mt-2 space-y-2"
+            onKeyDown={submitOnCommandEnter}
+            onSubmit={async (event) => {
+              event.preventDefault();
+
+              if (busy || !editText.trim()) return;
+
+              if (
+                await mutate({
+                  action: "edit",
+                  id: editing.id,
+                  body: editText,
+                  expected: clean(editing.body),
+                })
+              ) {
+                setEditing(null);
+                closeEdit();
+                toast.success("Comment updated on GitHub.");
+              }
+            }}
+          >
+            <textarea
+              aria-label="Edit comment"
+              autoFocus
+              disabled={busy}
+              className={`${control} block w-full p-2 text-mist-800 dark:text-mist-200`}
+              rows={4}
+              value={editText}
+              onChange={(event) => setEditText(event.target.value)}
+            />
+            {error && (
+              <p role="alert" className="text-red-400">
+                {error}
+              </p>
+            )}
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                className={control}
+                disabled={busy}
+                onClick={() => {
+                  setEditing(null);
+                  closeEdit();
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                data-shortcut-submit
+                disabled={busy || !state || !editText.trim()}
+                className="rounded bg-blue-700 px-3 py-1.5 text-white disabled:opacity-50"
+              >
+                {busy ? "Updating…" : "Update comment"}
+              </button>
+            </div>
+          </form>,
+          editRequest.container,
+        )}
       {manageComments && (
         <Dialog
           title="Pending comments"
@@ -616,6 +709,7 @@ export default function GitHubFeedback({
             {state?.comments.map((c) => (
               <article
                 key={c.id}
+                onKeyDown={submitOnCommandEnter}
                 className="space-y-2 rounded border border-mist-200 p-3 dark:border-mist-700"
               >
                 <p className="text-xs text-mist-500 wrap-anywhere">
@@ -633,6 +727,7 @@ export default function GitHubFeedback({
                     />
                     <button
                       className={control}
+                      data-shortcut-submit
                       disabled={busy || !editText.trim()}
                       onClick={async () => {
                         if (

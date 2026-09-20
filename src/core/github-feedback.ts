@@ -39,6 +39,8 @@ export const actionSchema = z.discriminatedUnion("action", [
 
 export const remoteCommentSchema = z.object({
   id: z.number(),
+  node_id: z.string().optional(),
+  user: z.object({ login: z.string() }).nullable().optional(),
   body: z.string(),
   path: z.string(),
   side: z.enum(["LEFT", "RIGHT"]).optional(),
@@ -65,6 +67,7 @@ export const reviewStateSchema = z.object({
   state: z.string(),
   review: remoteReviewSchema.nullable(),
   comments: z.array(remoteCommentSchema),
+  publishedComments: z.array(remoteCommentSchema).default([]),
   lastReview: remoteReviewSchema.nullable(),
   fallback: z.string().optional(),
 });
