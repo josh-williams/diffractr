@@ -3,7 +3,7 @@ import logo from "../assets/diffractr-logo.svg";
 export default function Brand() {
   return (
     <div
-      className="aurora-brand flex h-11 items-center gap-2 px-2 mb-2"
+      className="aurora-brand flex items-center gap-2 px-2"
       aria-label="diffractr"
     >
       <img
