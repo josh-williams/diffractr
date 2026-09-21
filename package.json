@@ -1,6 +1,6 @@
 {
   "name": "diffractr",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local code reviews organized by behavior, with agent-authored explanations and anchored feedback",
   "license": "MIT",
   "repository": {
